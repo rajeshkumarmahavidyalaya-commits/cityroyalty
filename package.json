@@ -1,0 +1,9 @@
+{
+  "name": "city-royalty-3d",
+  "version": "1.0.0",
+  "private": true,
+  "description": "City Royalty — scroll-driven 3D leather jacket experience built with three.js",
+  "scripts": {
+    "start": "npx --yes serve -l 8080 ."
+  }
+}

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>City Royalty — Handcrafted Leather Jackets, India</title>
+  <meta name="description" content="City Royalty — high quality handcrafted leather goods from India since 2018. Explore our leather jackets in an interactive 3D experience.">
+  <meta name="theme-color" content="#efe8da">
+  <link rel="icon" href="assets/img/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Manrope:wght@300..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+</head>
+<body data-theme="light">
+
+<!-- preloader -->
+<div class="loader" id="loader" aria-hidden="true">
+  <img src="assets/img/logo.png" alt="" class="loader__logo">
+  <div class="loader__bar"><span id="loaderBar"></span></div>
+  <p>Stitching your jacket…</p>
+</div>
+
+<!-- fixed 3D stage (the hero jacket lives here for the whole scroll) -->
+<canvas id="stage" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <a class="nav__logo" href="#top" aria-label="City Royalty — home"><img src="assets/img/logo.png" alt="City Royalty"></a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="#story">Story</a>
+    <a href="#anatomy">Anatomy</a>
+    <a href="#colours">Colours</a>
+    <a href="#collection">Collection</a>
+    <a href="#categories">Shop</a>
+  </nav>
+  <a class="btn btn--sm" id="navShop" href="https://cityroyalty.in/shop-shop-wooshop-v2/" target="_blank" rel="noopener">Shop now <span aria-hidden="true">↗</span></a>
+</header>
+
+<main id="top">
+
+  <!-- 01 HERO -->
+  <section class="hero" id="hero" data-pose="hero" data-theme="light">
+    <div class="hero__wordmark" aria-hidden="true"><span>CITY</span><span>ROYALTY</span></div>
+    <div class="hero__inner">
+      <p class="kicker"><span class="dot"></span> Est. 2018 · Handcrafted in India</p>
+      <h1 class="hero__title">Leather,<br><em>made for</em><br>royalty.</h1>
+      <p class="hero__lede">Handcrafted in Royal India. For the Royalty in you, we present the best leather handcrafted goods — made by hand, from the best materials and artists.</p>
+      <div class="hero__cta">
+        <a class="btn" href="#collection">Explore the jackets</a>
+        <a class="btn btn--ghost" href="#colours">Customise in 3D</a>
+      </div>
+    </div>
+    <aside class="hero__tag" aria-label="Featured product">
+      <span class="hero__tag-label">Hero piece</span>
+      <strong>Men's Brown Leather Biker Jacket</strong>
+      <span><s>₹18,999</s> <b>₹13,999</b></span>
+    </aside>
+    <div class="hero__drag" data-drag aria-hidden="true"></div>
+    <div class="scrollcue" aria-hidden="true"><span>Scroll to continue</span><i></i></div>
+  </section>
+
+  <!-- 02 STORY -->
+  <section class="story" id="story" data-pose="story" data-theme="light">
+    <div class="wrap story__grid">
+      <div class="story__copy">
+        <p class="kicker">The jacket</p>
+        <h2 class="display">A City Royalty jacket <em>isn't just leather.</em></h2>
+        <p class="lead">City Royalty was established in 2018 with a mission to bring authentic, high-quality leather goods to India. All our products are handmade from the best materials, by skilled artists.</p>
+        <p class="lead">Ideal for a bike ride or an outing. Durable enough for the road, refined enough for work, with a <em>Royal Unmatched Look</em>.</p>
+      </div>
+      <ul class="stats" aria-label="City Royalty at a glance">
+        <li><b data-count="2018">2018</b><span>Established</span></li>
+        <li><b data-count="9">9</b><span>Jacket styles</span></li>
+        <li><b>100%</b><span>Handcrafted in India</span></li>
+        <li><b>24/7</b><span>Customer support</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 03 ANATOMY (scroll-driven exploded view) -->
+  <section class="anatomy" id="anatomy" data-track="anatomy" data-theme="dark">
+    <div class="anatomy__head wrap">
+      <p class="kicker">Anatomy</p>
+      <h2 class="display">Built piece by piece.</h2>
+    </div>
+    <div class="step" data-step="0">
+      <span class="step__no">01</span>
+      <h3>Padded for the ride</h3>
+      <p>A padded thin fibre layer is fitted inside to provide safety and maintain your body temperature — comfort that doesn't compromise on the look.</p>
+    </div>
+    <div class="step" data-step="1">
+      <span class="step__no">02</span>
+      <h3>Brass zippered pockets</h3>
+      <p>Brass zips keep your contents secure, while interior slip pockets help organise your smaller essentials. Hard-wearing hardware, built to be used.</p>
+    </div>
+    <div class="step" data-step="2">
+      <span class="step__no">03</span>
+      <h3>Snap closures, made easy</h3>
+      <p>Our exclusive finger bridges make the snap closures a breeze — through your busy day, from the first press to the last.</p>
+    </div>
+    <div class="step" data-step="3">
+      <span class="step__no">04</span>
+      <h3>A Royal Unmatched Look</h3>
+      <p>The perfect jacket for work or a weekend getaway. Handcrafted from the best materials, and finished by hand.</p>
+    </div>
+  </section>
+
+  <!-- 04 COLOURS -->
+  <section class="colours" id="colours" data-pose="colours" data-anchor=".colours__stage" data-theme="light">
+    <div class="wrap colours__grid">
+      <div class="colours__head">
+        <p class="kicker">Customise</p>
+        <h2 class="display">Pick your <em id="colourWord">colour.</em></h2>
+        <p class="lead">Drag the jacket to turn it. Nine real styles from the City Royalty range — tap a swatch to try them on.</p>
+      </div>
+      <div class="colours__stage" data-drag>
+        <span class="drag-hint" aria-hidden="true">↔ Drag to rotate</span>
+      </div>
+      <div class="colours__panel">
+        <div class="swatches" id="swatches" role="radiogroup" aria-label="Jacket colour"></div>
+        <div class="pinfo">
+          <div class="pinfo__text">
+            <span class="pinfo__cat" id="pCat">Men's Jacket</span>
+            <h3 id="pName">Men's Brown Leather Biker Jacket</h3>
+            <p class="pinfo__price" id="pPrice"></p>
+            <a class="btn" id="pBuy" href="#" target="_blank" rel="noopener">Buy now on cityroyalty.in <span aria-hidden="true">↗</span></a>
+          </div>
+          <figure class="pinfo__photo">
+            <img id="pPhoto" src="assets/img/BIKBRNJK4-Mens-Brown-Leather-Biker-Jacket-3.jpg" alt="Product photo" loading="lazy">
+            <figcaption>In real life</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 COLLECTION (second WebGL scene: 3D product ring) -->
+  <section class="collection" id="collection" data-pose="away" data-theme="dark">
+    <div class="wrap collection__head">
+      <p class="kicker">Best products · Newly launched</p>
+      <h2 class="display">The <em>Collection.</em></h2>
+      <p class="lead">Drag to spin. Tap a card to bring it forward.</p>
+    </div>
+    <div class="ring" id="ring">
+      <canvas id="ringCanvas" aria-label="3D carousel of City Royalty products"></canvas>
+      <button class="ring__arrow ring__arrow--l" id="ringPrev" aria-label="Previous product">‹</button>
+      <button class="ring__arrow ring__arrow--r" id="ringNext" aria-label="Next product">›</button>
+    </div>
+    <div class="wrap detail" id="detail">
+      <div class="detail__main">
+        <span class="detail__cat" id="dCat"></span>
+        <h3 id="dName"></h3>
+        <p class="detail__price" id="dPrice"></p>
+        <p class="detail__desc" id="dDesc"></p>
+        <p class="detail__sku">SKU <b id="dSku"></b></p>
+        <div class="detail__cta">
+          <a class="btn btn--light" id="dBuy" href="#" target="_blank" rel="noopener">Buy now ↗</a>
+          <span class="detail__count" id="dCount"></span>
+        </div>
+      </div>
+      <div class="detail__thumbs" id="dThumbs"></div>
+    </div>
+  </section>
+
+  <!-- 06 SALE -->
+  <section class="sale" id="sale" data-pose="sale" data-theme="ink">
+    <div class="wrap sale__inner">
+      <p class="kicker">New winter collection</p>
+      <h2 class="sale__big"><span>50%</span> <em>OFF</em></h2>
+      <p class="lead">Carry your essentials. Layer up in leather this winter.</p>
+      <div class="countdown" id="countdown" role="timer" aria-label="Time left on the winter sale">
+        <div><b id="cdD">00</b><span>Days</span></div>
+        <div><b id="cdH">00</b><span>Hours</span></div>
+        <div><b id="cdM">00</b><span>Minutes</span></div>
+        <div><b id="cdS">00</b><span>Seconds</span></div>
+      </div>
+      <a class="btn btn--light" href="https://cityroyalty.in/shop-shop-wooshop-v2/" target="_blank" rel="noopener">Shop the winter collection ↗</a>
+    </div>
+  </section>
+
+  <!-- 07 CATEGORIES -->
+  <section class="cats" id="categories" data-pose="away" data-theme="light">
+    <div class="wrap">
+      <p class="kicker">Shop by category</p>
+      <h2 class="display">Everything <em>in leather.</em></h2>
+      <ul class="cats__grid" id="catGrid"></ul>
+    </div>
+  </section>
+
+  <!-- 08 PROMISES -->
+  <section class="promise" data-pose="away" data-theme="light">
+    <div class="wrap promise__grid">
+      <div><i aria-hidden="true">🚚</i><b>Free shipping</b><span>On orders over Rs. 600</span></div>
+      <div><i aria-hidden="true">🔒</i><b>Secure payment</b><span>100% secure payment</span></div>
+      <div><i aria-hidden="true">🎁</i><b>Gift card</b><span>Buy now, get up to ₹500</span></div>
+      <div><i aria-hidden="true">💬</i><b>24/7 support</b><span>Ready support</span></div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer" data-theme="light">
+  <div class="wrap footer__top">
+    <div class="footer__brand">
+      <img src="assets/img/logo.png" alt="City Royalty">
+      <p>City Royalty was established in 2018 with a mission to bring authentic, high-quality leather goods to India.</p>
+      <div class="social">
+        <a href="https://www.facebook.com/CITYROYALTY" target="_blank" rel="noopener">Facebook</a>
+        <a href="https://www.instagram.com/cityroyalty.official" target="_blank" rel="noopener">Instagram</a>
+      </div>
+    </div>
+    <nav aria-label="Shopping">
+      <h4>Shopping</h4>
+      <a href="https://cityroyalty.in/my-account/" target="_blank" rel="noopener">My Account</a>
+      <a href="https://cityroyalty.in/shop-shop-wooshop-v2/" target="_blank" rel="noopener">Products</a>
+      <a href="https://cityroyalty.in/my-account/orders/" target="_blank" rel="noopener">Track Order</a>
+    </nav>
+    <nav aria-label="Help">
+      <h4>Here to help</h4>
+      <a href="https://cityroyalty.in/contact-us-2/" target="_blank" rel="noopener">Help &amp; contact us</a>
+      <a href="https://cityroyalty.in/privacy-policy/" target="_blank" rel="noopener">Privacy / Return Policy</a>
+      <a href="https://cityroyalty.in/refund_returns/" target="_blank" rel="noopener">Refund &amp; Returns Policy</a>
+      <a href="https://maps.app.goo.gl/U2CwtnYYHcnNVV1p9" target="_blank" rel="noopener">Locations</a>
+    </nav>
+    <nav aria-label="Products">
+      <h4>Products</h4>
+      <a href="https://cityroyalty.in/product-category/jacket/" target="_blank" rel="noopener">Jacket</a>
+      <a href="https://cityroyalty.in/product-category/leather-bags/" target="_blank" rel="noopener">Bags</a>
+      <a href="https://cityroyalty.in/product-category/belts/" target="_blank" rel="noopener">Belts</a>
+      <a href="https://cityroyalty.in/product-category/jewellery/" target="_blank" rel="noopener">Jewellery</a>
+      <a href="https://cityroyalty.in/product-category/leather-wallet/" target="_blank" rel="noopener">Wallet</a>
+      <a href="https://cityroyalty.in/about-us-2/" target="_blank" rel="noopener">About us</a>
+    </nav>
+  </div>
+  <div class="footer__mega" aria-hidden="true">CITY ROYALTY</div>
+  <div class="wrap footer__bottom">
+    <span>© City Royalty. All rights reserved.</span>
+    <span>Free shipping on orders over Rs. 600</span>
+  </div>
+</footer>
+
+<noscript><p class="noscript">This experience needs JavaScript. Visit <a href="https://cityroyalty.in">cityroyalty.in</a> to shop.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
