@@ -8,7 +8,7 @@ style of oryzo.ai.
 
 | Section | 3D / interaction |
 |---|---|
-| **Hero** | Procedural leather biker jacket, outlined wordmark behind it, pointer parallax, drag to spin, gold dust motes |
+| **Hero** | Real 3D leather biker jacket, outlined wordmark behind it, pointer parallax, drag to spin, gold dust motes |
 | **Story** | Jacket swings to a 3/4 view while the brand story scrolls |
 | **Anatomy** | Scroll-driven camera: zoom to the brass zip, the snaps, then an **exploded view** where every part flies apart |
 | **Colours** | Live recolour of the 3D jacket with the 9 real City Royalty jacket colourways, drag-to-rotate, real product photo + buy link |
@@ -16,11 +16,20 @@ style of oryzo.ai.
 | **Winter sale** | "50% OFF — New Winter Collection" with countdown and falling snow |
 | **Shop by category** | Tilting 3D tiles linking to the real category pages |
 
-The jacket is built entirely in code (`js/jacket.js`): a superellipse torso, tube sleeves, surface-hugging
-lapels, instanced brass zip teeth, pockets, epaulettes and a procedurally generated leather-grain normal map.
-No model files are needed. It is a stylised biker-jacket shape that changes colour per product — it does not
-reproduce the exact cut of every women's style. To use real scans instead, load a `.glb` in `js/main.js` in place
-of `buildJacket()` and keep the same `setColor` / `explode` API.
+The 3D jackets are real, professionally modelled glTF assets (`assets/models/`), prepared in `js/jacket.js`:
+the leather is recoloured live while the zips, snaps and studs are masked out via the metalness map, the sleeves are
+cut cleanly at the shoulder for the exploded view, and the inside of the garment gets a dark lining.
+Men's styles use the biker model; the women's styles use the stand-collar model. Each model keeps its own cut — only
+the colour changes per product, so it is a close stand-in rather than an exact scan of every product.
+To use your own scans, drop `.glb` files into `assets/models/` and point `CONFIG` in `js/jacket.js` at them.
+
+## Credits (CC BY 4.0)
+
+- ["Leather Biker Jacket"](https://sketchfab.com/3d-models/leather-biker-jacket-f10c673852c54fac97f4481d124d6d39) by Sigil0fSaturn
+- ["Leather Jacket"](https://sketchfab.com/3d-models/leather-jacket-e23bdddd6b1a4659a0134e5efa8ee4eb) by Zoe McCue
+
+Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: textures re-encoded, models recoloured,
+resized and split into parts. Keep this attribution (it is also in the page footer) if you reuse them.
 
 ## Content source
 
@@ -48,11 +57,12 @@ Vercel, Netlify, GitHub Pages or any static host. three.js (r170) is vendored in
 index.html          markup + copy
 css/style.css       design system, themes (light / dark / ink), responsive
 js/main.js          main scene, scroll-pose choreography, configurator, UI
-js/jacket.js        procedural jacket (geometry, leather material, exploded view)
+js/jacket.js        loads the glTF jackets, live recolour, shoulder cut, exploded view
 js/carousel.js      3D product ring (second renderer)
 js/data.js          products, categories, links
 assets/img/         product photos + logo from cityroyalty.in
-vendor/             three.js + RoomEnvironment
+assets/models/      the two jacket .glb models (CC BY 4.0)
+vendor/             three.js, GLTFLoader, RoomEnvironment
 ```
 
 Respects `prefers-reduced-motion`, falls back to a static product photo if WebGL is unavailable, and adapts the

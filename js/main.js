@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
-import { buildJacket } from './jacket.js';
+import { loadJackets } from './jacket.js';
 import { initRing } from './carousel.js';
 import { products, belt, categories, formatINR, SALE_ENDS } from './data.js';
 
@@ -15,20 +15,20 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
  *  x is a fraction of the visible half-width, y/fx/fy/fz in world/model units,
  *  s scale, ry/rx/rz rotation, ex = exploded amount, snow = particle mode.
  * ------------------------------------------------------------------ */
-const P = (o) => ({ x: 0, y: 0, s: 1, ry: 0, rx: 0, rz: 0, ex: 0, fx: 0, fy: 0, fz: 0, snow: 0, abs: 0, ...o });
+const P = (o) => ({ x: 0, y: 0, s: 1, ry: 0, rx: 0, rz: 0, ex: 0, fx: 0, fy: 0, fz: 0, snow: 0, abs: 0, f: '', ...o });
 const POSES = {
-  hero:  P({ x: 0.3, y: 0.05, s: 1.45, ry: -0.32, rx: 0.03 }),
-  story: P({ x: 0.44, y: 0.0, s: 1.4, ry: -0.8, rz: 0.07 }),
-  a0:    P({ x: 0.42, y: 0.0, s: 1.45, ry: -0.5, ex: 0.0 }),
-  a1:    P({ x: 0.42, y: 0.02, s: 2.3, ry: -0.18, fx: 0.06, fy: 0.12, fz: 0.17 }),
-  a2:    P({ x: 0.42, y: 0.0, s: 2.5, ry: 0.28, fx: 0.07, fy: 0.3, fz: 0.15 }),
-  a3:    P({ x: 0.38, y: 0.0, s: 1.15, ry: 0.35, rx: 0.06, ex: 1.0 }),
-  colours: P({ x: 0.0, y: 0.04, s: 1.55, ry: 0.0 }),
-  sale:  P({ x: -0.5, y: 0.0, s: 1.35, ry: 0.85, rz: -0.08, snow: 1 }),
+  hero:  P({ x: 0.32, y: 0.02, s: 1.8, ry: -0.3, rx: 0.04 }),
+  story: P({ x: 0.52, y: 0.0, s: 1.5, ry: -0.75, rz: 0.06 }),
+  a0:    P({ x: 0.4, y: 0.0, s: 1.7, ry: -0.45 }),
+  a1:    P({ x: 0.52, y: 0.0, s: 2.5, ry: -0.2, f: 'zip' }),
+  a2:    P({ x: 0.5, y: 0.0, s: 2.7, ry: 0.3, f: 'collar' }),
+  a3:    P({ x: 0.38, y: 0.0, s: 1.5, ry: 0.28, rx: 0.05, ex: 1.0 }),
+  colours: P({ x: 0.0, y: 0.04, s: 1.6, ry: 0.0 }),
+  sale:  P({ x: -0.5, y: 0.0, s: 1.55, ry: 0.8, rz: -0.07, snow: 1 }),
   away:  P({ x: 0.0, y: -0.2, s: 0.0001, ry: 1.2 }),
 };
 const TRACKS = { anatomy: ['a0', 'a1', 'a2', 'a3'] };
-const KEYS = Object.keys(POSES.hero);
+const KEYS = ['x', 'y', 's', 'ry', 'rx', 'rz', 'ex', 'fx', 'fy', 'fz', 'snow', 'abs'];
 const mixPose = (a, b, t) => { const o = {}; for (const k of KEYS) o[k] = a[k] + (b[k] - a[k]) * t; return o; };
 
 /* ------------------------------------------------------------------ *
@@ -66,18 +66,21 @@ if (renderer) {
   key.position.set(-2.5, 3, 3.5);
   const rim = new THREE.DirectionalLight(0xbcd0ff, 1.1);
   rim.position.set(3, 1.5, -3);
-  const warm = new THREE.PointLight(0xc9a24b, 6, 8);
+  const warm = new THREE.PointLight(0xffe2b8, 1.2, 8);
   warm.position.set(1.5, -0.4, 2.2);
   scene.add(key, rim, warm);
   setProgress(0.4);
 
-  jacket = buildJacket({ maxAniso: renderer.capabilities.getMaxAnisotropy() });
+  jacket = await loadJackets({
+    maxAniso: renderer.capabilities.getMaxAnisotropy(),
+    onProgress: (v) => setProgress(0.4 + v * 0.5),
+  });
   rig = new THREE.Group();
   rig.add(jacket.root);
   scene.add(rig);
   jacket.setColor(products[0].color);
   jacket.update(10);
-  setProgress(0.75);
+  setProgress(0.92);
 
   // dust motes (gold) that turn into snow in the winter section
   const COUNT = 650;
@@ -112,7 +115,7 @@ const nav = $('#nav');
 
 // Sections can pin the jacket to an element (data-anchor): it is centred on that element and
 // scaled to fit it, so the HTML layout and the 3D pose can never drift apart.
-const JACKET_H = 0.8, JACKET_W = 0.88;
+const JACKET_H = 0.5, JACKET_W = 0.9;
 function anchored(el, pose) {
   const a = el.dataset.anchor && $(el.dataset.anchor, el);
   if (!a || !camera) return pose;
@@ -126,8 +129,14 @@ function anchored(el, pose) {
 }
 // On portrait screens the text needs the whole width, so the jacket sits out these sections.
 const PORTRAIT_SWAP = { story: 'away', sale: 'away' };
+// close-up poses name a part of the jacket ('zip', 'collar'); resolve it for whichever model is showing
+function withFocus(pose) {
+  if (!pose.f || !jacket) return pose;
+  const v = jacket.focus(pose.f);
+  return { ...pose, fx: v.x, fy: v.y, fz: v.z };
+}
 function sectionKeys(el) {
-  if (el.dataset.track) return TRACKS[el.dataset.track].map((k) => POSES[k]);
+  if (el.dataset.track) return TRACKS[el.dataset.track].map((k) => withFocus(POSES[k]));
   const portrait = innerWidth / innerHeight < 0.95;
   const name = (portrait && PORTRAIT_SWAP[el.dataset.pose]) || el.dataset.pose;
   return [anchored(el, POSES[name])];
@@ -297,7 +306,7 @@ function selectColour(i, focus) {
   colourIdx = i;
   const p = products[i];
   $$('.swatch', swatchWrap).forEach((b, n) => { b.setAttribute('aria-checked', n === i); b.tabIndex = n === i ? 0 : -1; });
-  if (jacket) { jacket.setColor(p.color); jacket.setRough(p.rough); }
+  if (jacket) { jacket.setModel(p.category === "Men's Jacket" ? 'biker' : 'women'); jacket.setColor(p.color); jacket.setRough(p.rough); }
   $('#colourWord').textContent = p.short.toLowerCase() + '.';
   $('#pCat').textContent = p.category;
   $('#pName').textContent = p.name;
