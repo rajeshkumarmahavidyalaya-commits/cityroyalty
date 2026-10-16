@@ -59,12 +59,13 @@ Vercel, Netlify, GitHub Pages or any static host. three.js (r170) is vendored in
 index.html          markup + copy
 css/style.css       design system, themes (light / dark / ink), responsive
 js/main.js          main scene, scroll-pose choreography, configurator, UI
+js/studio.js        photo-studio lighting (soft-box reflections for the leather)
 js/jacket.js        loads the glTF jackets, live recolour, shoulder cut, exploded view
 js/carousel.js      3D product ring (second renderer)
 js/data.js          products, categories, links
 assets/img/         product photos + logo from cityroyalty.in
 assets/models/      the two jacket .glb models (CC BY 4.0)
-vendor/             three.js, GLTFLoader, RoomEnvironment
+vendor/             three.js, GLTFLoader
 ```
 
 Respects `prefers-reduced-motion`, falls back to a static product photo if WebGL is unavailable, and adapts the

@@ -29,6 +29,51 @@ const CONFIG = {
   },
 };
 
+/* ---------------- fine leather grain (detail normal map) ---------------- */
+
+/** periodic Voronoi "pebble" height field converted to a tangent-space normal map */
+function makeGrainNormalMap(size = 512, cells = 40) {
+  const pts = [];
+  for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) pts.push([i + 0.12 + Math.random() * 0.76, j + 0.12 + Math.random() * 0.76]);
+  const h = new Float32Array(size * size), cs = size / cells;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const gx = x / cs, gy = y / cs, cx = Math.floor(gx), cy = Math.floor(gy);
+      let d1 = 9, d2 = 9;
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          const ix = (((cx + ox) % cells) + cells) % cells, iy = (((cy + oy) % cells) + cells) % cells;
+          const p = pts[iy * cells + ix];
+          const d = Math.hypot(gx - (p[0] + cx + ox - ix), gy - (p[1] + cy + oy - iy));
+          if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+        }
+      }
+      const pebble = Math.max(0, 1 - Math.pow(d1 * 1.2, 2));
+      const groove = Math.min(1, (d2 - d1) * 3.4);
+      h[y * size + x] = pebble * (0.4 + 0.6 * groove) + (Math.random() - 0.5) * 0.05;
+    }
+  }
+  const data = new Uint8Array(size * size * 4);
+  const at = (x, y) => h[(((y % size) + size) % size) * size + (((x % size) + size) % size)];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 2.4, dy = (at(x, y + 1) - at(x, y - 1)) * 2.4;
+      const inv = 1 / Math.hypot(dx, dy, 1), i = (y * size + x) * 4;
+      data[i] = (-dx * inv * 0.5 + 0.5) * 255;
+      data[i + 1] = (dy * inv * 0.5 + 0.5) * 255;
+      data[i + 2] = (inv * 0.5 + 0.5) * 255;
+      data[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /* ---------------- geometry helpers ---------------- */
 
 /** clip a triangle mesh by a plane; returns [positiveSide, negativeSide] geometries (cut edge is exact, attributes interpolated) */
@@ -133,6 +178,12 @@ function medianLuminance(tex) {
   }
 }
 
+let grainTex = null;
+function getGrain(maxAniso) {
+  if (!grainTex) { grainTex = makeGrainNormalMap(); grainTex.anisotropy = maxAniso; }
+  return grainTex;
+}
+
 /* ---------------- model builder ---------------- */
 
 async function buildModel(name, loader, maxAniso) {
@@ -164,7 +215,11 @@ async function buildModel(name, loader, maxAniso) {
   /* --- materials --- */
   const base = leather.mat;
   [base.map, base.normalMap, base.metalnessMap, base.aoMap].forEach((t) => t && (t.anisotropy = maxAniso));
+  const grain = getGrain(maxAniso);
   const uniforms = {
+    uGrain: { value: grain },
+    uGrainScale: { value: cfg.grainScale ?? 24.0 },
+    uGrainAmt: { value: cfg.grainAmt ?? 0.32 },
     uTint: { value: new THREE.Color(0x4a2716) },
     uAvg: { value: medianLuminance(base.map) },
     uLining: { value: new THREE.Color(0x15100d) },
@@ -175,15 +230,30 @@ async function buildModel(name, loader, maxAniso) {
   leatherMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uTint;\nuniform float uAvg;\nuniform vec3 uLining;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uTint;\nuniform float uAvg;\nuniform vec3 uLining;\nuniform sampler2D uGrain;\nuniform float uGrainScale;\nuniform float uGrainAmt;')
       .replace(
         '#include <metalnessmap_fragment>',
         `#include <metalnessmap_fragment>
         float leatherMask = 1.0 - smoothstep(0.25, 0.65, metalnessFactor);
         float lum = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-        vec3 recol = uTint * clamp(pow(lum / uAvg, 0.3), 0.6, 1.5);
+        vec3 recol = uTint * clamp(pow(lum / uAvg, 0.22), 0.7, 1.35);
         diffuseColor.rgb = mix(diffuseColor.rgb, recol, leatherMask);
+        // keep the hide from looking wet: floor the baked roughness on leather
+        roughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.36), leatherMask);
         if (!gl_FrontFacing) diffuseColor.rgb = mix(diffuseColor.rgb, uLining, leatherMask);`
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#ifdef USE_NORMALMAP_TANGENTSPACE
+          vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;
+          mapN.xy *= normalScale;
+          // fine hide grain layered over the baked 1024px normal map (keeps close-ups crisp)
+          vec3 gN = texture2D( uGrain, vNormalMapUv * uGrainScale ).xyz * 2.0 - 1.0;
+          mapN = normalize( vec3( mapN.xy + gN.xy * uGrainAmt * leatherMask, mapN.z ) );
+          normal = normalize( tbn * mapN );
+        #else
+          #include <normal_fragment_maps>
+        #endif`
       );
   };
   leatherMat.customProgramCacheKey = () => 'cr-leather-' + name;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
+import { buildStudioEnvironment, addStudioLights } from './studio.js';
 import { loadJackets } from './jacket.js';
 import { initRing } from './carousel.js';
 import { products, belt, categories, formatINR, SALE_ENDS } from './data.js';
@@ -64,17 +64,12 @@ if (renderer) {
   camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   camera.position.set(0, 0.02, 3.6);
 
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.85;
-
-  const key = new THREE.DirectionalLight(0xfff1de, 1.5);
-  key.position.set(-2.5, 3, 3.5);
-  const rim = new THREE.DirectionalLight(0xbcd0ff, 1.1);
-  rim.position.set(3, 1.5, -3);
-  const warm = new THREE.PointLight(0xffe2b8, 1.2, 8);
+  scene.environment = buildStudioEnvironment(renderer);
+  scene.environmentIntensity = 1.8;
+  addStudioLights(scene);
+  const warm = new THREE.PointLight(0xffe2b8, 1.0, 8);
   warm.position.set(1.5, -0.4, 2.2);
-  scene.add(key, rim, warm);
+  scene.add(warm);
   setProgress(0.4);
 
   jacket = await loadJackets({
@@ -325,6 +320,8 @@ function tick(now) {
   dust.material.size = 0.04 + cur.snow * 0.03;
   dust.visible = state.section !== 'collection' && state.section !== 'categories';
 
+  // slowly drifting studio reflections: highlights slide across the leather as the pointer moves / time passes
+  scene.environmentRotation.y = state.sx * 0.45 + (reduceMotion ? 0 : Math.sin(clock * 0.18) * 0.25);
   rig.updateMatrixWorld(true);
   updateHotspots();
 
