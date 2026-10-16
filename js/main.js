@@ -9,6 +9,12 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// real anchor click: works in sandboxed frames where window.open is blocked
+function openUrl(url) {
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
 
 /* ------------------------------------------------------------------ *
  *  Poses: where the 3D jacket sits for each scroll section.
@@ -22,7 +28,7 @@ const POSES = {
   a0:    P({ x: 0.4, y: 0.0, s: 1.7, ry: -0.45 }),
   a1:    P({ x: 0.52, y: 0.0, s: 2.5, ry: -0.2, f: 'zip' }),
   a2:    P({ x: 0.5, y: 0.0, s: 2.7, ry: 0.3, f: 'collar' }),
-  a3:    P({ x: 0.38, y: 0.0, s: 1.5, ry: 0.28, rx: 0.05, ex: 1.0 }),
+  a3:    P({ x: 0.3, y: 0.0, s: 1.4, ry: 0.28, rx: 0.05, ex: 1.0 }),
   colours: P({ x: 0.0, y: 0.04, s: 1.6, ry: 0.0 }),
   sale:  P({ x: -0.5, y: 0.0, s: 1.55, ry: 0.8, rz: -0.07, snow: 1 }),
   away:  P({ x: 0.0, y: -0.2, s: 0.0001, ry: 1.2 }),
@@ -48,10 +54,10 @@ const setProgress = (v) => { if (loaderBar) loaderBar.style.width = Math.round(v
 setProgress(0.15);
 
 let jacket, rig, scene, camera, dust;
-const state = { yaw: 0, vel: 0, dragging: false, mx: 0, my: 0, sx: 0, sy: 0, section: 'hero' };
+const state = { yaw: 0, vel: 0, dragging: false, mx: 0, my: 0, sx: 0, sy: 0, section: 'hero', stepF: 0, cleared: false };
 
 if (renderer) {
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.75 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   scene = new THREE.Scene();
@@ -162,6 +168,7 @@ function targetPose() {
     }
     const i = Math.min(keys.length - 2, Math.floor(f));
     pose = mixPose(keys[i], keys[i + 1], smooth(0.2, 0.8, f - i));
+    state.stepF = f;
     steps.forEach((s, n) => s.classList.toggle('is-active', Math.abs(f - n) < 0.55));
   }
 
@@ -220,6 +227,44 @@ function resize() {
 }
 addEventListener('resize', resize);
 resize();
+
+/* ------------------------------------------------------------------ *
+ *  Callout labels pinned to points on the 3D jacket (anatomy section)
+ * ------------------------------------------------------------------ */
+const NAMES = {
+  biker: { zip: 'Asymmetric zip', collar: 'Snap-down lapel' },
+  women: { zip: 'Centre-front zip', collar: 'Stand collar' },
+};
+const HOTSPOTS = [
+  { step: 1, anchor: 'zip', key: 'zip' },
+  { step: 2, anchor: 'collar', key: 'collar' },
+  { step: 3, anchor: 'sleeveL', label: 'Sleeve' },
+  { step: 3, anchor: 'body', label: 'Body & lapels' },
+  { step: 3, anchor: 'hardware', label: 'Zips & snaps' },
+  { step: 3, anchor: 'sleeveR', label: 'Sleeve' },
+];
+const hsLayer = $('#hotspots');
+HOTSPOTS.forEach((h) => {
+  h.el = document.createElement('div');
+  h.el.className = 'hotspot';
+  h.el.innerHTML = '<i></i><span></span>';
+  hsLayer.appendChild(h.el);
+});
+const hsV = new THREE.Vector3();
+function updateHotspots() {
+  const inAnatomy = state.section === 'anatomy';
+  const model = jacket.active.name;
+  HOTSPOTS.forEach((h) => {
+    const o = inAnatomy ? 1 - clamp(Math.abs(state.stepF - h.step) * 2.4) : 0;
+    if (o < 0.02) { if (h.on) { h.el.style.opacity = 0; h.on = false; } return; }
+    h.on = true;
+    if (h.model !== model) { h.model = model; h.el.lastChild.textContent = h.label || NAMES[model][h.key]; }
+    hsV.copy(jacket.anchor(h.anchor)).project(camera);
+    const x = (hsV.x * 0.5 + 0.5) * innerWidth, y = (-hsV.y * 0.5 + 0.5) * innerHeight;
+    h.el.style.transform = `translate(${x - 7}px, ${y - 7}px)`;
+    h.el.style.opacity = o.toFixed(3);
+  });
+}
 
 function tick(now) {
   requestAnimationFrame(tick);
@@ -280,7 +325,12 @@ function tick(now) {
   dust.material.size = 0.04 + cur.snow * 0.03;
   dust.visible = state.section !== 'collection' && state.section !== 'categories';
 
-  renderer.render(scene, camera);
+  rig.updateMatrixWorld(true);
+  updateHotspots();
+
+  // nothing 3D on screen (collection / categories): skip the draw and leave the canvas clear
+  if (rig.visible || dust.visible) { renderer.render(scene, camera); state.cleared = false; }
+  else if (!state.cleared) { renderer.clear(); state.cleared = true; }
   if (!ready) { ready = true; finishLoading(); }
 }
 
@@ -344,10 +394,16 @@ function showDetail(i) {
   D.sku.textContent = p.sku || '—';
   D.sku.parentElement.style.display = p.sku ? '' : 'none';
   D.buy.href = p.url;
+  const sizeWrap = $('#dSizes');
+  sizeWrap.hidden = !p.sizes;
+  $('#dSizeList').innerHTML = (p.sizes || []).map((z) => `<i>${z}</i>`).join('');
   D.count.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(ringItems.length).padStart(2, '0');
   D.thumbs.innerHTML = '';
-  [p.image, ...(p.gallery || [])].slice(0, 3).forEach((src) => {
-    const im = new Image(); im.src = src; im.alt = p.name; im.loading = 'lazy'; D.thumbs.appendChild(im);
+  const photos = [p.image, ...(p.gallery || [])].slice(0, 3);
+  photos.forEach((src, n) => {
+    const im = new Image(); im.src = src; im.alt = p.name + ' — photo ' + (n + 1); im.loading = 'lazy';
+    im.addEventListener('click', () => openLightbox(photos, n, p.name));
+    D.thumbs.appendChild(im);
   });
 }
 showDetail(0);
@@ -355,7 +411,7 @@ let ringStarted = false;
 function startRing() {
   if (ringStarted) return; ringStarted = true;
   try {
-    initRing({ canvas: $('#ringCanvas'), items: ringItems, onSelect: showDetail, onOpen: (i) => window.open(ringItems[i].url, '_blank', 'noopener') });
+    initRing({ canvas: $('#ringCanvas'), items: ringItems, onSelect: showDetail, onOpen: (i) => openUrl(ringItems[i].url) });
   } catch (e) { console.warn('Ring unavailable', e); $('#ring').innerHTML = '<p style="padding:2rem;text-align:center">3D view unavailable — see the product details below.</p>'; }
 }
 new IntersectionObserver((en) => { if (en[0].isIntersecting) startRing(); }, { rootMargin: '900px' }).observe($('#collection'));
@@ -394,6 +450,62 @@ function countdown() {
   $('#cdS').textContent = pad(Math.floor(d / 1e3) % 60);
 }
 countdown(); setInterval(countdown, 1000);
+
+/* ------------------------------------------------------------------ *
+ *  Lightbox
+ * ------------------------------------------------------------------ */
+const lb = { el: $('#lightbox'), img: $('#lbImg'), cap: $('#lbCap'), list: [], i: 0, name: '' };
+function lbShow() {
+  lb.img.src = lb.list[lb.i]; lb.img.alt = lb.name;
+  lb.cap.textContent = `${lb.name}  ·  ${lb.i + 1} / ${lb.list.length}`;
+}
+function openLightbox(list, i, name) { lb.list = list; lb.i = i; lb.name = name; lbShow(); lb.el.hidden = false; $('#lbClose').focus(); }
+const closeLightbox = () => { lb.el.hidden = true; };
+$('#lbClose').addEventListener('click', closeLightbox);
+$('#lbPrev').addEventListener('click', () => { lb.i = (lb.i - 1 + lb.list.length) % lb.list.length; lbShow(); });
+$('#lbNext').addEventListener('click', () => { lb.i = (lb.i + 1) % lb.list.length; lbShow(); });
+lb.el.addEventListener('click', (e) => { if (e.target === lb.el) closeLightbox(); });
+
+/* ------------------------------------------------------------------ *
+ *  Search (products + categories; opens the real product page)
+ * ------------------------------------------------------------------ */
+const searchItems = [
+  ...products.map((p) => ({ title: p.name, sub: `${p.category} · ${p.price ? formatINR(p.price) : 'Enquire for price'}`, img: p.image, url: p.url, text: `${p.name} ${p.sku} ${p.category} ${p.short} jacket leather` })),
+  { title: belt.name, sub: 'Belts', img: belt.image, url: belt.url, text: `${belt.name} belt belts leather` },
+  ...categories.map((c) => ({ title: c.name, sub: 'Category', img: c.img, url: c.url, text: `${c.name} ${c.blurb} category shop` })),
+];
+const sBox = $('#search'), sInput = $('#searchInput'), sList = $('#searchResults');
+let sSel = 0, sShown = [];
+function renderSearch() {
+  const q = sInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  sShown = (q.length ? searchItems.filter((it) => q.every((w) => it.text.toLowerCase().includes(w))) : searchItems.slice(0, 8)).slice(0, 12);
+  sSel = Math.min(sSel, Math.max(0, sShown.length - 1));
+  sList.innerHTML = sShown.length
+    ? sShown.map((it, n) => `<li role="option" aria-selected="${n === sSel}"><a href="${it.url}" target="_blank" rel="noopener">${it.img ? `<img src="${it.img}" alt="" loading="lazy">` : '<img alt="" src="assets/img/logo.png" style="object-fit:contain;padding:6px">'}<span><b>${it.title}</b><small>${it.sub}</small></span></a></li>`).join('')
+    : '<li class="search__empty">No products match that. Try “biker”, “maroon” or “belt”.</li>';
+}
+function openSearch() { sBox.hidden = false; sInput.value = ''; sSel = 0; renderSearch(); sInput.focus(); }
+function closeSearch() { sBox.hidden = true; $('#searchBtn').focus(); }
+$('#searchBtn').addEventListener('click', openSearch);
+$('#searchClose').addEventListener('click', closeSearch);
+sBox.addEventListener('click', (e) => { if (e.target === sBox) closeSearch(); });
+sInput.addEventListener('input', () => { sSel = 0; renderSearch(); });
+addEventListener('keydown', (e) => {
+  if (!lb.el.hidden) {
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') $('#lbPrev').click();
+    if (e.key === 'ArrowRight') $('#lbNext').click();
+    return;
+  }
+  if (!sBox.hidden) {
+    if (e.key === 'Escape') closeSearch();
+    if (e.key === 'ArrowDown') { e.preventDefault(); sSel = (sSel + 1) % Math.max(1, sShown.length); renderSearch(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); sSel = (sSel - 1 + sShown.length) % Math.max(1, sShown.length); renderSearch(); }
+    if (e.key === 'Enter' && sShown[sSel]) openUrl(sShown[sSel].url);
+    return;
+  }
+  if (e.key === '/' && !/input|textarea/i.test(document.activeElement?.tagName || '')) { e.preventDefault(); openSearch(); }
+});
 
 const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }), { threshold: 0.12 });
 $$('.display, .lead, .stats li, .cat, .promise__grid > div, .kicker, .sale__big, .countdown, .detail__main, .hero__title, .hero__lede, .hero__cta')

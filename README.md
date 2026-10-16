@@ -12,8 +12,10 @@ style of oryzo.ai.
 | **Story** | Jacket swings to a 3/4 view while the brand story scrolls |
 | **Anatomy** | Scroll-driven camera: zoom to the brass zip, the snaps, then an **exploded view** where every part flies apart |
 | **Colours** | Live recolour of the 3D jacket with the 9 real City Royalty jacket colourways, drag-to-rotate, real product photo + buy link |
+| **Anatomy callouts** | Labels pinned to points on the 3D jacket (zip, lapel, each exploded part) follow it as the camera moves |
 | **Collection** | Second WebGL scene: a draggable 3D ring of the real product photos (best products / newly launched) |
 | **Winter sale** | "50% OFF — New Winter Collection" with countdown and falling snow |
+| **Search** | Press `/` (or the Search button) to find products and categories; results open the real product page |
 | **Shop by category** | Tilting 3D tiles linking to the real category pages |
 
 The 3D jackets are real, professionally modelled glTF assets (`assets/models/`), prepared in `js/jacket.js`:

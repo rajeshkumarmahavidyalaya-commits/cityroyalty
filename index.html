@@ -27,6 +27,7 @@
 <!-- fixed 3D stage (the hero jacket lives here for the whole scroll) -->
 <canvas id="stage" aria-hidden="true"></canvas>
 <div class="grain" aria-hidden="true"></div>
+<div class="hotspots" id="hotspots" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <a class="nav__logo" href="#top" aria-label="City Royalty — home"><img src="assets/img/logo.png" alt="City Royalty"></a>
@@ -37,6 +38,10 @@
     <a href="#collection">Collection</a>
     <a href="#categories">Shop</a>
   </nav>
+  <button class="nav__search" id="searchBtn" type="button" aria-label="Search products (press /)" aria-haspopup="dialog">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <span>Search</span>
+  </button>
   <a class="btn btn--sm" id="navShop" href="https://cityroyalty.in/shop-shop-wooshop-v2/" target="_blank" rel="noopener">Shop now <span aria-hidden="true">↗</span></a>
 </header>
 
@@ -156,13 +161,14 @@
         <h3 id="dName"></h3>
         <p class="detail__price" id="dPrice"></p>
         <p class="detail__desc" id="dDesc"></p>
+        <p class="detail__sizes" id="dSizes" hidden>Sizes <span id="dSizeList"></span></p>
         <p class="detail__sku">SKU <b id="dSku"></b></p>
         <div class="detail__cta">
           <a class="btn btn--light" id="dBuy" href="#" target="_blank" rel="noopener">Buy now ↗</a>
           <span class="detail__count" id="dCount"></span>
         </div>
       </div>
-      <div class="detail__thumbs" id="dThumbs"></div>
+      <div class="detail__thumbs" id="dThumbs" title="Click a photo to enlarge"></div>
     </div>
   </section>
 
@@ -242,6 +248,25 @@
   </div>
   <p class="wrap footer__credits">3D models: <a href="https://sketchfab.com/3d-models/leather-biker-jacket-f10c673852c54fac97f4481d124d6d39" target="_blank" rel="noopener">“Leather Biker Jacket”</a> by Sigil0fSaturn and <a href="https://sketchfab.com/3d-models/leather-jacket-e23bdddd6b1a4659a0134e5efa8ee4eb" target="_blank" rel="noopener">“Leather Jacket”</a> by Zoe McCue, via Sketchfab, licensed <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Recoloured, resized and split into parts for this site.</p>
 </footer>
+
+<div class="search" id="search" role="dialog" aria-modal="true" aria-label="Search products" hidden>
+  <div class="search__panel">
+    <div class="search__bar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="search" placeholder="Search jackets, belts, bags…" autocomplete="off" aria-label="Search products">
+      <button type="button" id="searchClose" aria-label="Close search">Esc</button>
+    </div>
+    <ul class="search__results" id="searchResults" role="listbox"></ul>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Product photos" hidden>
+  <button class="lightbox__close" id="lbClose" type="button" aria-label="Close">×</button>
+  <button class="lightbox__nav lightbox__nav--l" id="lbPrev" type="button" aria-label="Previous photo">‹</button>
+  <img id="lbImg" src="" alt="">
+  <button class="lightbox__nav lightbox__nav--r" id="lbNext" type="button" aria-label="Next photo">›</button>
+  <p id="lbCap"></p>
+</div>
 
 <noscript><p class="noscript">This experience needs JavaScript. Visit <a href="https://cityroyalty.in">cityroyalty.in</a> to shop.</p></noscript>
 <script type="module" src="js/main.js"></script>

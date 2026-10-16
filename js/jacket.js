@@ -230,6 +230,11 @@ async function buildModel(name, loader, maxAniso) {
 
   const group = new THREE.Group();
   Object.values(parts).forEach((p) => group.add(p));
+  const partCenters = {};
+  Object.entries(parts).forEach(([key, p]) => {
+    const b = new THREE.Box3().setFromObject(p);
+    partCenters[key] = b.isEmpty() ? new THREE.Vector3() : b.getCenter(new THREE.Vector3());
+  });
 
   /* --- focus points for the close-up camera moves --- */
   const lp = leather.geo.attributes.position;
@@ -271,7 +276,7 @@ async function buildModel(name, loader, maxAniso) {
     }
   };
 
-  return { name, group, parts, focus, uniforms, material: leatherMat, setExplode, target: new THREE.Color(0x4a2716), rough: 0 };
+  return { name, group, parts, focus, partCenters, uniforms, material: leatherMat, setExplode, target: new THREE.Color(0x4a2716), rough: 0 };
 }
 
 /* ---------------- public API ---------------- */
@@ -300,6 +305,12 @@ export async function loadJackets({ maxAniso = 8, onProgress } = {}) {
     setRough(v) { names.forEach((n) => (models[n].rough = v)); },
     explode(v) { explode = v; },
     focus(name) { return models[active].focus[name] || models[active].focus.full; },
+    /** world position of a named feature ('zip', 'collar', 'cuff') or part ('body', 'sleeveL', 'sleeveR', 'hardware') */
+    anchor(name) {
+      const m = models[active];
+      if (m.partCenters[name]) return m.parts[name].localToWorld(m.partCenters[name].clone());
+      return m.group.localToWorld((m.focus[name] || m.focus.full).clone());
+    },
     update(dt) {
       for (const n of names) {
         const m = models[n];
