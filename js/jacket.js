@@ -374,6 +374,14 @@ export async function loadJackets({ maxAniso = 8, onProgress } = {}) {
     setColor(hex) { names.forEach((n) => models[n].target.set(hex)); },
     setRough(v) { names.forEach((n) => (models[n].rough = v)); },
     explode(v) { explode = v; },
+    /** compile every shader and upload every texture now (behind the loader), so switching jackets mid-scroll never hitches */
+    warmUp(renderer, scene, camera) {
+      const was = names.map((n) => models[n].group.visible);
+      names.forEach((n) => { models[n].group.visible = true; });
+      renderer.compile(scene, camera);
+      renderer.render(scene, camera);
+      names.forEach((n, i) => { models[n].group.visible = was[i]; });
+    },
     focus(name) { return models[active].focus[name] || models[active].focus.full; },
     /** world position of a named feature ('zip', 'collar', 'cuff') or part ('body', 'sleeveL', 'sleeveR', 'hardware') */
     anchor(name) {

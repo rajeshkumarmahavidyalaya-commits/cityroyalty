@@ -76,12 +76,22 @@ export function initRing({ canvas, items, onSelect, onOpen }) {
     const card = new THREE.Mesh(cardGeo, mat);
     card.userData.index = i;
     loader.load(it.image, (tex) => {
+      // photos are up to 1600px but a card is ~400 CSS px: shrink once so the GPU upload (and memory) is small
+      const src = tex.image, k = Math.min(1, 1024 / Math.max(src.width, src.height));
+      if (k < 1) {
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(src.width * k); cv.height = Math.round(src.height * k);
+        cv.getContext('2d').drawImage(src, 0, 0, cv.width, cv.height);
+        tex.image = cv;
+      }
       tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      tex.needsUpdate = true;
       const ia = tex.image.width / tex.image.height, ca = CARD_W / CARD_H;
       if (ia > ca) { tex.repeat.x = ca / ia; tex.offset.x = (1 - tex.repeat.x) / 2; }
       else { tex.repeat.y = ia / ca; tex.offset.y = (1 - tex.repeat.y) * 0.7; }
       mat.map = tex; mat.needsUpdate = true;
+      renderer.initTexture(tex); // upload now, off the scroll path
     });
     const labelMat = new THREE.MeshBasicMaterial({ map: labelTexture(it.short || it.name, it.price ? '₹' + it.price.toLocaleString('en-IN') : it.category), transparent: true });
     const label = new THREE.Mesh(labelGeo, labelMat);
@@ -209,6 +219,7 @@ export function initRing({ canvas, items, onSelect, onOpen }) {
     if (fi !== selected) { selected = fi; onSelect?.(fi); }
     renderer.render(scene, camera);
   }
+  renderer.compile(scene, camera); // shaders ready before the section scrolls in
   requestAnimationFrame(frame);
 
   return { select: go, get index() { return selected; } };

@@ -43,7 +43,7 @@ const mixPose = (a, b, t) => { const o = {}; for (const k of KEYS) o[k] = a[k] +
 const canvas = $('#stage');
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, stencil: false, powerPreference: 'high-performance' });
 } catch (e) {
   console.warn('WebGL unavailable, using static fallback', e);
   document.documentElement.classList.add('no-webgl');
@@ -57,7 +57,6 @@ let jacket, rig, scene, camera, dust;
 const state = { yaw: 0, vel: 0, dragging: false, mx: 0, my: 0, sx: 0, sy: 0, section: 'hero', stepF: 0, cleared: false };
 
 if (renderer) {
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.75 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   scene = new THREE.Scene();
@@ -113,39 +112,64 @@ const themed = [...sections, $('.footer')];
 const poseSections = sections.filter((s) => s.dataset.pose || s.dataset.track);
 const steps = $$('.step');
 const nav = $('#nav');
+const bgLayers = $('.bgs');
+
+/* ------------------------------------------------------------------ *
+ *  Layout cache.
+ *  Reading element rects every frame forces the browser to recalculate layout while the
+ *  page is scrolling. Instead everything is measured once (in document coordinates) and
+ *  re-measured only when the layout can have changed; the frame loop only reads scrollY.
+ * ------------------------------------------------------------------ */
+const L = { sections: [], themed: [], steps: [], anchors: new Map(), cw: innerWidth, ch: innerHeight, dirty: true };
+function measure() {
+  L.dirty = false;
+  const sy = scrollY;
+  const doc = (el) => { const r = el.getBoundingClientRect(); return { top: r.top + sy, bottom: r.bottom + sy, left: r.left, width: r.width, height: r.height }; };
+  L.sections = poseSections.map(doc);
+  L.themed = themed.map(doc);
+  L.steps = steps.map((e) => { const r = doc(e); return r.top + r.height / 2; });
+  L.anchors.clear();
+  poseSections.forEach((el) => { const a = el.dataset.anchor && $(el.dataset.anchor, el); if (a) L.anchors.set(el, doc(a)); });
+}
+const invalidate = () => { L.dirty = true; };
+addEventListener('load', invalidate);
+document.fonts?.ready.then(invalidate);
+new ResizeObserver(invalidate).observe(document.body);
 
 // Sections can pin the jacket to an element (data-anchor): it is centred on that element and
 // scaled to fit it, so the HTML layout and the 3D pose can never drift apart.
 const JACKET_H = 0.5, JACKET_W = 0.9;
 function anchored(el, pose) {
-  const a = el.dataset.anchor && $(el.dataset.anchor, el);
-  if (!a || !camera) return pose;
-  const r = a.getBoundingClientRect();
+  const r = L.anchors.get(el);
+  if (!r || !camera) return pose;
+  const sy = scrollY, vw = L.cw, vh = L.ch;
   const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
-  const halfW = halfH * (innerWidth / innerHeight);
-  const y = clamp(((innerHeight / 2 - (r.top + r.height / 2)) / (innerHeight / 2)) * halfH, -halfH * 1.7, halfH * 1.7);
-  const x = ((r.left + r.width / 2 - innerWidth / 2) / (innerWidth / 2));
-  const s = Math.min(((r.height / innerHeight) * 2 * halfH) / JACKET_H, ((r.width / innerWidth) * 2 * halfW) / JACKET_W);
-  return { ...pose, y, x, s, abs: 1 };
+  const halfW = halfH * (vw / vh);
+  const cy = r.top - sy + r.height / 2;
+  const y = clamp(((vh / 2 - cy) / (vh / 2)) * halfH, -halfH * 1.7, halfH * 1.7);
+  const x = (r.left + r.width / 2 - vw / 2) / (vw / 2);
+  const sc = Math.min(((r.height / vh) * 2 * halfH) / JACKET_H, ((r.width / vw) * 2 * halfW) / JACKET_W);
+  return { ...pose, y, x, s: sc, abs: 1 };
 }
-// On portrait screens the text needs the whole width, so the jacket sits out these sections.
-const PORTRAIT_SWAP = { story: 'away', sale: 'away' };
 // close-up poses name a part of the jacket ('zip', 'collar'); resolve it for whichever model is showing
 function withFocus(pose) {
   if (!pose.f || !jacket) return pose;
   const v = jacket.focus(pose.f);
   return { ...pose, fx: v.x, fy: v.y, fz: v.z };
 }
+// On portrait screens the text needs the whole width, so the jacket sits out these sections.
+const PORTRAIT_SWAP = { story: 'away', sale: 'away' };
 function sectionKeys(el) {
   if (el.dataset.track) return TRACKS[el.dataset.track].map((k) => withFocus(POSES[k]));
-  const portrait = innerWidth / innerHeight < 0.95;
+  const portrait = L.cw / L.ch < 0.95;
   const name = (portrait && PORTRAIT_SWAP[el.dataset.pose]) || el.dataset.pose;
   return [anchored(el, POSES[name])];
 }
 
 function targetPose() {
-  const vh = innerHeight, vc = vh * 0.5;
-  const rects = poseSections.map((el) => el.getBoundingClientRect());
+  if (L.dirty) measure();
+  const vh = innerHeight, vc = scrollY + vh * 0.5; // viewport centre in document coordinates
+  const rects = L.sections;
   let idx = rects.findIndex((r) => r.top <= vc && r.bottom > vc);
   if (idx < 0) idx = vc < rects[0].top ? 0 : poseSections.length - 1;
   const el = poseSections[idx], keys = sectionKeys(el);
@@ -154,7 +178,7 @@ function targetPose() {
   // pose inside the section (anatomy interpolates per step)
   let pose = keys[0];
   if (keys.length > 1) {
-    const cs = steps.map((s) => { const r = s.getBoundingClientRect(); return r.top + r.height / 2; });
+    const cs = L.steps;
     let f = 0;
     if (vc >= cs[cs.length - 1]) f = cs.length - 1;
     else if (vc > cs[0]) {
@@ -163,8 +187,10 @@ function targetPose() {
     }
     const i = Math.min(keys.length - 2, Math.floor(f));
     pose = mixPose(keys[i], keys[i + 1], smooth(0.2, 0.8, f - i));
-    state.stepF = f;
-    steps.forEach((s, n) => s.classList.toggle('is-active', Math.abs(f - n) < 0.55));
+    if (state.stepF !== f) {
+      state.stepF = f;
+      steps.forEach((s, n) => s.classList.toggle('is-active', Math.abs(f - n) < 0.55));
+    }
   }
 
   // blend across the boundary with the neighbouring section
@@ -183,10 +209,10 @@ function targetPose() {
 }
 
 function currentTheme() {
-  const vc = innerHeight * 0.5;
-  for (const el of themed) {
-    const r = el.getBoundingClientRect();
-    if (r.top <= vc && r.bottom > vc) return el.dataset.theme || 'light';
+  const vc = scrollY + innerHeight * 0.5;
+  for (let i = 0; i < L.themed.length; i++) {
+    const r = L.themed[i];
+    if (r.top <= vc && r.bottom > vc) return themed[i].dataset.theme || 'light';
   }
   return 'light';
 }
@@ -211,17 +237,62 @@ addEventListener('pointermove', (e) => { state.mx = (e.clientX / innerWidth) * 2
  *  Render loop
  * ------------------------------------------------------------------ */
 let cur = null, lastT = performance.now(), clock = 0;
-let ready = false;
+let ready = false, resizePending = true, navScrolled = null;
+const GOLD = new THREE.Color(0xc9a24b), WHITE = new THREE.Color(0xffffff);
 
-function resize() {
+/* Resolution. The canvas is sized from its CSS box (100lvh = the largest viewport), so mobile
+ * URL-bar movement never reallocates the WebGL buffer. The pixel ratio is chosen by timing real
+ * frames on this GPU at load, and only ever steps down afterwards if frames get slow. */
+const DPR_MAX = renderer ? Math.min(devicePixelRatio || 1, 2) : 1;
+let dpr = DPR_MAX, sizedW = 0, sizedH = 0;
+function applyResolution() {
   if (!renderer) return;
-  const w = innerWidth, h = innerHeight;
+  const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
+  L.cw = w; L.ch = h;
+  renderer.setPixelRatio(dpr);
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  sizedW = w; sizedH = h;
+  invalidate();
 }
-addEventListener('resize', resize);
-resize();
+addEventListener('resize', () => { resizePending = true; });
+function checkResize() {
+  resizePending = false;
+  const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
+  if (w !== sizedW || h !== sizedH) applyResolution();
+}
+
+/** time a few real frames at each candidate pixel ratio (gl.finish forces the GPU to complete) */
+function calibrate() {
+  const gl = renderer.getContext();
+  const candidates = [DPR_MAX, 1.5, 1.25, 1].filter((v, i, arr) => v <= DPR_MAX && arr.indexOf(v) === i);
+  for (const cand of candidates) {
+    dpr = cand; applyResolution();
+    let total = 0, n = 0;
+    for (let i = 0; i < 5; i++) {
+      const t0 = performance.now();
+      renderer.render(scene, camera); gl.finish();
+      if (i > 0) { total += performance.now() - t0; n++; }
+      if (i === 1 && total / n > 60) return (dpr = 1, applyResolution()); // clearly slow (software GL): don't waste time
+    }
+    if (total / n < 9) return; // leaves headroom for compositing + page work
+  }
+  dpr = 1; applyResolution();
+}
+
+/** after load: if real frames are slow, drop resolution one step (never raises again: no oscillation) */
+const frameTimes = []; let lastDprChange = 0;
+function watchFrameRate(dtMs) {
+  if (!ready || dtMs > 250) return; // ignore tab switches / hitches
+  frameTimes.push(dtMs);
+  if (frameTimes.length < 45) return;
+  frameTimes.sort((x, y) => x - y);
+  const median = frameTimes[22];
+  frameTimes.length = 0;
+  const now = performance.now();
+  if (median > 24 && dpr > 1 && now - lastDprChange > 2500) { dpr = Math.max(1, +(dpr - 0.25).toFixed(2)); lastDprChange = now; applyResolution(); }
+}
 
 /* ------------------------------------------------------------------ *
  *  Callout labels pinned to points on the 3D jacket (anatomy section)
@@ -255,7 +326,7 @@ function updateHotspots() {
     h.on = true;
     if (h.model !== model) { h.model = model; h.el.lastChild.textContent = h.label || NAMES[model][h.key]; }
     hsV.copy(jacket.anchor(h.anchor)).project(camera);
-    const x = (hsV.x * 0.5 + 0.5) * innerWidth, y = (-hsV.y * 0.5 + 0.5) * innerHeight;
+    const x = (hsV.x * 0.5 + 0.5) * L.cw, y = (-hsV.y * 0.5 + 0.5) * L.ch;
     h.el.style.transform = `translate(${x - 7}px, ${y - 7}px)`;
     h.el.style.opacity = o.toFixed(3);
   });
@@ -263,21 +334,25 @@ function updateHotspots() {
 
 function tick(now) {
   requestAnimationFrame(tick);
-  const dt = Math.min(0.05, (now - lastT) / 1000);
+  const dtMs = now - lastT;
+  const dt = Math.min(0.05, dtMs / 1000);
   lastT = now; clock += dt;
+  if (resizePending && renderer) checkResize();
+  watchFrameRate(dtMs);
 
-  nav.classList.toggle('is-scrolled', scrollY > 40);
+  const scrolled = scrollY > 40;
+  if (scrolled !== navScrolled) { navScrolled = scrolled; nav.classList.toggle('is-scrolled', scrolled); }
   const theme = currentTheme();
   if (document.body.dataset.theme !== theme) document.body.dataset.theme = theme;
   if (!renderer) { targetPose(); return; }
 
   const tgt = targetPose();
   if (!cur) cur = { ...tgt };
-  const k = 1 - Math.exp(-dt * (reduceMotion ? 20 : 5.5));
+  const k = 1 - Math.exp(-dt * (reduceMotion ? 20 : 8.5)); // quick enough to feel attached to the scroll, smooth enough to hide wheel steps
   for (const key of KEYS) cur[key] += (tgt[key] - cur[key]) * k;
 
   // responsive layout: on portrait screens the jacket moves above the text
-  const aspect = innerWidth / innerHeight;
+  const aspect = L.cw / L.ch;
   const portrait = aspect < 0.95;
   const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
   const halfW = halfH * aspect;
@@ -306,19 +381,21 @@ function tick(now) {
   jacket.explode(cur.ex);
   jacket.update(dt);
 
-  // particles
-  const arr = dust.geometry.attributes.position.array, seed = dust.userData.seed;
-  const fall = 0.04 + cur.snow * 0.32;
-  for (let i = 0; i < seed.length; i++) {
-    arr[i * 3 + 1] -= dt * fall * (0.5 + seed[i]);
-    arr[i * 3] += Math.sin(clock * 0.6 + seed[i] * 12) * dt * 0.05;
-    if (arr[i * 3 + 1] < -2.2) arr[i * 3 + 1] = 2.2;
-  }
-  dust.geometry.attributes.position.needsUpdate = true;
-  dust.material.color.set(0xc9a24b).lerp(new THREE.Color(0xffffff), cur.snow);
-  dust.material.opacity = (portrait ? 0.25 : 0.4) + cur.snow * 0.4;
-  dust.material.size = 0.04 + cur.snow * 0.03;
+  // particles (only while they are on screen)
   dust.visible = state.section !== 'collection' && state.section !== 'categories';
+  if (dust.visible) {
+    const arr = dust.geometry.attributes.position.array, seed = dust.userData.seed;
+    const fall = 0.04 + cur.snow * 0.32, sway2 = dt * 0.05;
+    for (let i = 0; i < seed.length; i++) {
+      arr[i * 3 + 1] -= dt * fall * (0.5 + seed[i]);
+      arr[i * 3] += Math.sin(clock * 0.6 + seed[i] * 12) * sway2;
+      if (arr[i * 3 + 1] < -2.2) arr[i * 3 + 1] = 2.2;
+    }
+    dust.geometry.attributes.position.needsUpdate = true;
+    dust.material.color.copy(GOLD).lerp(WHITE, cur.snow);
+    dust.material.opacity = (portrait ? 0.25 : 0.4) + cur.snow * 0.4;
+    dust.material.size = 0.04 + cur.snow * 0.03;
+  }
 
   // slowly drifting studio reflections: highlights slide across the leather as the pointer moves / time passes
   scene.environmentRotation.y = state.sx * 0.45 + (reduceMotion ? 0 : Math.sin(clock * 0.18) * 0.25);
@@ -333,8 +410,16 @@ function tick(now) {
 
 function finishLoading() {
   setProgress(1);
+  // build the 3D product ring while the browser is idle, not while the visitor is scrolling toward it
+  (window.requestIdleCallback || ((f) => setTimeout(f, 800)))(() => startRing(), { timeout: 2500 });
   const done = () => setTimeout(() => $('#loader')?.classList.add('is-done'), 250);
   if (document.fonts?.ready) Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1800))]).then(done); else done();
+}
+if (renderer) {
+  applyResolution();
+  rig.scale.setScalar(1.8); // representative load while timing frames
+  jacket.warmUp(renderer, scene, camera);
+  calibrate();
 }
 requestAnimationFrame(tick);
 if (!renderer) finishLoading();
