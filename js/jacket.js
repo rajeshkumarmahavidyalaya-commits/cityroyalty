@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
+import { readModel } from './model-source.js';
 
 /* ------------------------------------------------------------------ *
  *  Real 3D leather jackets (glTF), prepared at load time:
@@ -31,10 +32,16 @@ const CONFIG = {
 
 /* ---------------- fine leather grain (detail normal map) ---------------- */
 
-/** periodic Voronoi "pebble" height field converted to a tangent-space normal map */
-function makeGrainNormalMap(size = 512, cells = 40) {
-  const pts = [];
-  for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) pts.push([i + 0.12 + Math.random() * 0.76, j + 0.12 + Math.random() * 0.76]);
+/** Periodic Voronoi "pebble" height field converted to a tangent-space normal map (RGBA bytes).
+ *  Deliberately self-contained: it is serialised into a Web Worker (see grainData) so it never blocks the page. */
+function computeGrain(size, cells) {
+  const px = new Float32Array(cells * cells), py = new Float32Array(cells * cells);
+  for (let j = 0; j < cells; j++) {
+    for (let i = 0; i < cells; i++) {
+      px[j * cells + i] = i + 0.12 + Math.random() * 0.76;
+      py[j * cells + i] = j + 0.12 + Math.random() * 0.76;
+    }
+  }
   const h = new Float32Array(size * size), cs = size / cells;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -43,95 +50,143 @@ function makeGrainNormalMap(size = 512, cells = 40) {
       for (let oy = -1; oy <= 1; oy++) {
         for (let ox = -1; ox <= 1; ox++) {
           const ix = (((cx + ox) % cells) + cells) % cells, iy = (((cy + oy) % cells) + cells) % cells;
-          const p = pts[iy * cells + ix];
-          const d = Math.hypot(gx - (p[0] + cx + ox - ix), gy - (p[1] + cy + oy - iy));
+          const k = iy * cells + ix;
+          const dx = gx - (px[k] + cx + ox - ix), dy = gy - (py[k] + cy + oy - iy);
+          const d = Math.sqrt(dx * dx + dy * dy);
           if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
         }
       }
-      const pebble = Math.max(0, 1 - Math.pow(d1 * 1.2, 2));
+      const e = d1 * 1.2;
+      const pebble = Math.max(0, 1 - e * e);
       const groove = Math.min(1, (d2 - d1) * 3.4);
       h[y * size + x] = pebble * (0.4 + 0.6 * groove) + (Math.random() - 0.5) * 0.05;
     }
   }
   const data = new Uint8Array(size * size * 4);
-  const at = (x, y) => h[(((y % size) + size) % size) * size + (((x % size) + size) % size)];
+  const m = size - 1; // size is a power of two: wrap with a mask
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const dx = (at(x + 1, y) - at(x - 1, y)) * 2.4, dy = (at(x, y + 1) - at(x, y - 1)) * 2.4;
-      const inv = 1 / Math.hypot(dx, dy, 1), i = (y * size + x) * 4;
+      const dx = (h[y * size + ((x + 1) & m)] - h[y * size + ((x - 1) & m)]) * 2.4;
+      const dy = (h[((y + 1) & m) * size + x] - h[((y - 1) & m) * size + x]) * 2.4;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1), i = (y * size + x) * 4;
       data[i] = (-dx * inv * 0.5 + 0.5) * 255;
       data[i + 1] = (dy * inv * 0.5 + 0.5) * 255;
       data[i + 2] = (inv * 0.5 + 0.5) * 255;
       data[i + 3] = 255;
     }
   }
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  return data;
+}
+
+const GRAIN_SIZE = 512;
+let grainPromise = null;
+/** start generating the grain on a worker thread (falls back to the main thread); resolves to RGBA bytes */
+function grainData() {
+  if (grainPromise) return grainPromise;
+  grainPromise = new Promise((resolve) => {
+    const inline = () => resolve(computeGrain(GRAIN_SIZE, 40));
+    try {
+      const src = `self.onmessage=(e)=>{const r=(${computeGrain.toString()})(e.data[0],e.data[1]);self.postMessage(r,[r.buffer])}`;
+      const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      const w = new Worker(url);
+      const done = () => { w.terminate(); URL.revokeObjectURL(url); };
+      w.onmessage = (e) => { done(); resolve(e.data); };
+      w.onerror = () => { done(); inline(); };
+      w.postMessage([GRAIN_SIZE, 40]);
+    } catch (err) {
+      inline();
+    }
+  });
+  return grainPromise;
+}
+grainData(); // kick off at import time: it runs while the model downloads
+
+let grainTex = null;
+async function getGrain(maxAniso) {
+  if (grainTex) return grainTex;
+  const tex = new THREE.DataTexture(await grainData(), GRAIN_SIZE, GRAIN_SIZE, THREE.RGBAFormat);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.magFilter = THREE.LinearFilter;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.generateMipmaps = true;
+  tex.anisotropy = maxAniso;
   tex.needsUpdate = true;
-  return tex;
+  return (grainTex = tex);
 }
 
 /* ---------------- geometry helpers ---------------- */
 
-/** clip a triangle mesh by a plane; returns [positiveSide, negativeSide] geometries (cut edge is exact, attributes interpolated) */
+/** Clip a triangle mesh by a plane; returns [positiveSide, negativeSide] geometries (the cut edge is exact,
+ *  every vertex attribute is interpolated). Works on one interleaved Float32Array: no per-vertex allocations. */
 function clipByPlane(source, normal, d) {
   const geo = source.index ? source.toNonIndexed() : source;
   const names = Object.keys(geo.attributes);
-  const sizes = names.map((n) => geo.attributes[n].itemSize);
-  const stride = sizes.reduce((a, b) => a + b, 0);
-  const posOff = sizes.slice(0, names.indexOf('position')).reduce((a, b) => a + b, 0); // attribute order differs per exporter
-  const count = geo.attributes.position.count;
-  const flat = new Float32Array(count * stride);
-  for (let i = 0; i < count; i++) {
-    let o = i * stride;
-    names.forEach((n, k) => {
-      const a = geo.attributes[n];
-      for (let c = 0; c < sizes[k]; c++) flat[o++] = a.getComponent(i, c);
-    });
-  }
-  const dist = (v) => normal.x * v[posOff] + normal.y * v[posOff + 1] + normal.z * v[posOff + 2] - d;
-  const pos = [], neg = [];
-  const get = (i) => flat.subarray(i * stride, i * stride + stride);
-  const lerpV = (a, b, t) => { const o = new Float32Array(stride); for (let k = 0; k < stride; k++) o[k] = a[k] + (b[k] - a[k]) * t; return o; };
-  const clip = (poly, keepPositive) => {
-    const out = [];
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i], b = poly[(i + 1) % poly.length];
-      const da = dist(a), db = dist(b);
-      const ina = keepPositive ? da >= 0 : da <= 0, inb = keepPositive ? db >= 0 : db <= 0;
-      if (ina) out.push(a);
-      if (ina !== inb) out.push(lerpV(a, b, da / (da - db)));
+  const attrs = names.map((n) => geo.attributes[n]);
+  const sizes = attrs.map((a) => a.itemSize);
+  const offs = [];
+  let stride = 0;
+  sizes.forEach((sz) => { offs.push(stride); stride += sz; });
+  const posOff = offs[names.indexOf('position')]; // attribute order differs per exporter
+  const n = geo.attributes.position.count;
+
+  const flat = new Float32Array(n * stride);
+  attrs.forEach((a, k) => {
+    const sz = sizes[k], off = offs[k], arr = a.array;
+    if (arr instanceof Float32Array && !a.isInterleavedBufferAttribute) {
+      for (let i = 0; i < n; i++) for (let c = 0; c < sz; c++) flat[i * stride + off + c] = arr[i * sz + c];
+    } else {
+      for (let i = 0; i < n; i++) for (let c = 0; c < sz; c++) flat[i * stride + off + c] = a.getComponent(i, c);
     }
-    return out;
+  });
+
+  const nx = normal.x, ny = normal.y, nz = normal.z;
+  const dist = (v) => nx * flat[v * stride + posOff] + ny * flat[v * stride + posOff + 1] + nz * flat[v * stride + posOff + 2] - d;
+  // a triangle cut by a plane gives at most 4 vertices on either side
+  const scratch = new Float32Array(4 * stride);
+  const sinkPos = { buf: new Float32Array(n * 2 * stride), n: 0 }, sinkNeg = { buf: new Float32Array(n * 2 * stride), n: 0 };
+  const copyVertex = (sink, from, fromIndex) => {
+    const o = sink.n++ * stride, q = fromIndex * stride;
+    for (let k = 0; k < stride; k++) sink.buf[o + k] = from[q + k];
   };
-  for (let t = 0; t < count; t += 3) {
-    const tri = [get(t), get(t + 1), get(t + 2)];
-    const ds = tri.map(dist);
-    if (ds.every((x) => x >= 0)) pos.push(...tri);
-    else if (ds.every((x) => x <= 0)) neg.push(...tri);
-    else {
-      for (const [poly, out] of [[clip(tri, true), pos], [clip(tri, false), neg]]) {
-        for (let i = 1; i < poly.length - 1; i++) out.push(poly[0], poly[i], poly[i + 1]);
+  const tri = [0, 0, 0], ds = [0, 0, 0];
+  const clipSide = (sink, keepPositive) => {
+    let m = 0;
+    for (let e = 0; e < 3; e++) {
+      const a = tri[e], b = tri[(e + 1) % 3], da = ds[e], db = ds[(e + 1) % 3];
+      const ina = keepPositive ? da >= 0 : da <= 0, inb = keepPositive ? db >= 0 : db <= 0;
+      if (ina) { for (let k = 0; k < stride; k++) scratch[m * stride + k] = flat[a * stride + k]; m++; }
+      if (ina !== inb) {
+        const t = da / (da - db);
+        for (let k = 0; k < stride; k++) scratch[m * stride + k] = flat[a * stride + k] + (flat[b * stride + k] - flat[a * stride + k]) * t;
+        m++;
       }
     }
+    for (let i = 1; i < m - 1; i++) { copyVertex(sink, scratch, 0); copyVertex(sink, scratch, i); copyVertex(sink, scratch, i + 1); }
+  };
+  for (let t = 0; t < n; t += 3) {
+    tri[0] = t; tri[1] = t + 1; tri[2] = t + 2;
+    ds[0] = dist(t); ds[1] = dist(t + 1); ds[2] = dist(t + 2);
+    if (ds[0] >= 0 && ds[1] >= 0 && ds[2] >= 0) { for (let v = 0; v < 3; v++) copyVertex(sinkPos, flat, t + v); }
+    else if (ds[0] <= 0 && ds[1] <= 0 && ds[2] <= 0) { for (let v = 0; v < 3; v++) copyVertex(sinkNeg, flat, t + v); }
+    else { clipSide(sinkPos, true); clipSide(sinkNeg, false); }
   }
-  const build = (verts) => {
+
+  const build = (sink) => {
     const g = new THREE.BufferGeometry();
-    let o = 0;
-    names.forEach((n, k) => {
-      const arr = new Float32Array(verts.length * sizes[k]);
-      verts.forEach((v, i) => { for (let c = 0; c < sizes[k]; c++) arr[i * sizes[k] + c] = v[o + c]; });
-      o += sizes[k];
-      g.setAttribute(n, new THREE.BufferAttribute(arr, sizes[k]));
+    names.forEach((name, k) => {
+      const sz = sizes[k], off = offs[k], arr = new Float32Array(sink.n * sz);
+      for (let i = 0; i < sink.n; i++) for (let c = 0; c < sz; c++) arr[i * sz + c] = sink.buf[i * stride + off + c];
+      if (name === 'normal') {
+        for (let i = 0; i < sink.n; i++) {
+          const x = arr[i * 3], y = arr[i * 3 + 1], z = arr[i * 3 + 2], l = 1 / (Math.hypot(x, y, z) || 1);
+          arr[i * 3] = x * l; arr[i * 3 + 1] = y * l; arr[i * 3 + 2] = z * l;
+        }
+      }
+      g.setAttribute(name, new THREE.BufferAttribute(arr, sz));
     });
-    const nrm = g.attributes.normal;
-    if (nrm) for (let i = 0; i < nrm.count; i++) { const v = new THREE.Vector3().fromBufferAttribute(nrm, i).normalize(); nrm.setXYZ(i, v.x, v.y, v.z); }
     return g;
   };
-  return [build(pos), build(neg)];
+  return [build(sinkPos), build(sinkNeg)];
 }
 
 /** triangle -> connected component id (by shared vertex index) */
@@ -148,15 +203,15 @@ function triangleComponents(geo) {
 
 /** keep only triangles for which pick(triangleIndex) is true (works on non-indexed copies) */
 function pickTriangles(nonIndexed, pick) {
-  const g = new THREE.BufferGeometry();
   const tris = nonIndexed.attributes.position.count / 3;
+  const keep = [];
+  for (let t = 0; t < tris; t++) if (pick(t)) keep.push(t);
+  const g = new THREE.BufferGeometry();
   for (const name of Object.keys(nonIndexed.attributes)) {
-    const a = nonIndexed.attributes[name], s = a.itemSize, out = [];
-    for (let t = 0; t < tris; t++) {
-      if (!pick(t)) continue;
-      for (let v = 0; v < 3; v++) for (let c = 0; c < s; c++) out.push(a.getComponent(t * 3 + v, c));
-    }
-    g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(out), s));
+    const a = nonIndexed.attributes[name], sz = a.itemSize, out = new Float32Array(keep.length * 3 * sz);
+    let o = 0;
+    for (const t of keep) for (let v = 0; v < 3; v++) for (let c = 0; c < sz; c++) out[o++] = a.getComponent(t * 3 + v, c);
+    g.setAttribute(name, new THREE.BufferAttribute(out, sz));
   }
   return g;
 }
@@ -178,17 +233,12 @@ function medianLuminance(tex) {
   }
 }
 
-let grainTex = null;
-function getGrain(maxAniso) {
-  if (!grainTex) { grainTex = makeGrainNormalMap(); grainTex.anisotropy = maxAniso; }
-  return grainTex;
-}
-
 /* ---------------- model builder ---------------- */
 
 async function buildModel(name, loader, maxAniso) {
   const cfg = CONFIG[name];
-  const gltf = await loader.loadAsync(cfg.url);
+  performance.mark('cr:model-' + name + '-start');
+  const gltf = await readModel(loader, name, cfg.url);
   gltf.scene.updateMatrixWorld(true);
 
   // bake transforms, gather meshes
@@ -215,7 +265,9 @@ async function buildModel(name, loader, maxAniso) {
   /* --- materials --- */
   const base = leather.mat;
   [base.map, base.normalMap, base.metalnessMap, base.aoMap].forEach((t) => t && (t.anisotropy = maxAniso));
-  const grain = getGrain(maxAniso);
+  performance.mark('cr:model-' + name + '-parsed');
+  const grain = await getGrain(maxAniso);
+  performance.mark('cr:grain-' + name);
   const uniforms = {
     uGrain: { value: grain },
     uGrainScale: { value: cfg.grainScale ?? 24.0 },
@@ -298,6 +350,7 @@ async function buildModel(name, loader, maxAniso) {
     }
   });
 
+  performance.mark('cr:model-' + name + '-split');
   const group = new THREE.Group();
   Object.values(parts).forEach((p) => group.add(p));
   const partCenters = {};
@@ -351,36 +404,49 @@ async function buildModel(name, loader, maxAniso) {
 
 /* ---------------- public API ---------------- */
 
-export async function loadJackets({ maxAniso = 8, onProgress } = {}) {
+/** Loads the first jacket now; the others load on demand (setModel) or in idle time (preload), so the first
+ *  paint does not wait for models the visitor may never pick. */
+export async function loadJackets({ maxAniso = 8, onProgress, first = 'biker' } = {}) {
   const loader = new GLTFLoader();
   const models = {};
-  const names = Object.keys(CONFIG);
-  let done = 0;
-  for (const n of names) {
-    models[n] = await buildModel(n, loader, maxAniso);
-    onProgress?.(++done / names.length);
-  }
+  const loading = {};
   const root = new THREE.Group();
-  names.forEach((n) => root.add(models[n].group));
-  let active = 'biker';
-  names.forEach((n) => { models[n].group.scale.setScalar(n === active ? 1 : 0.0001); models[n].group.visible = n === active; });
-  let explode = 0;
+  let active = first, wanted = first;
+  let colour = null, rough = 0, explode = 0;
+
+  const load = (n) => (loading[n] ||= buildModel(n, loader, maxAniso).then((m) => {
+    models[n] = m;
+    if (colour !== null) { m.target.set(colour); m.uniforms.uTint.value.copy(m.target); } // start in the current colour
+    m.rough = rough;
+    m.group.scale.setScalar(n === wanted ? 1 : 0.0001);
+    m.group.visible = n === wanted;
+    root.add(m.group);
+    if (wanted === n) active = n;
+    return m;
+  }));
+
+  await load(first);
+  onProgress?.(1);
 
   return {
     root,
     models,
     get active() { return models[active]; },
-    setModel(n) { if (models[n]) active = n; },
-    setColor(hex) { names.forEach((n) => models[n].target.set(hex)); },
-    setRough(v) { names.forEach((n) => (models[n].rough = v)); },
+    /** switch to a jacket; if it is still loading, the current one stays until it arrives */
+    setModel(n) { if (!CONFIG[n]) return; wanted = n; if (models[n]) active = n; else load(n); },
+    /** fetch a jacket in the background (resolves when it is built) */
+    preload(n) { return load(n); },
+    setColor(hex) { colour = hex; for (const n in models) models[n].target.set(hex); },
+    setRough(v) { rough = v; for (const n in models) models[n].rough = v; },
     explode(v) { explode = v; },
-    /** compile every shader and upload every texture now (behind the loader), so switching jackets mid-scroll never hitches */
+    /** compile every shader and upload every texture now, so switching jackets mid-scroll never hitches */
     warmUp(renderer, scene, camera) {
-      const was = names.map((n) => models[n].group.visible);
-      names.forEach((n) => { models[n].group.visible = true; });
+      const loaded = Object.keys(models);
+      const was = loaded.map((n) => models[n].group.visible);
+      loaded.forEach((n) => { models[n].group.visible = true; });
       renderer.compile(scene, camera);
       renderer.render(scene, camera);
-      names.forEach((n, i) => { models[n].group.visible = was[i]; });
+      loaded.forEach((n, i) => { models[n].group.visible = was[i]; });
     },
     focus(name) { return models[active].focus[name] || models[active].focus.full; },
     /** world position of a named feature ('zip', 'collar', 'cuff') or part ('body', 'sleeveL', 'sleeveR', 'hardware') */
@@ -390,10 +456,10 @@ export async function loadJackets({ maxAniso = 8, onProgress } = {}) {
       return m.group.localToWorld((m.focus[name] || m.focus.full).clone());
     },
     update(dt) {
-      for (const n of names) {
+      const k = 1 - Math.exp(-dt * 7), kc = 1 - Math.exp(-dt * 6);
+      for (const n in models) {
         const m = models[n];
-        const k = 1 - Math.exp(-dt * 7);
-        m.uniforms.uTint.value.lerp(m.target, 1 - Math.exp(-dt * 6));
+        m.uniforms.uTint.value.lerp(m.target, kc);
         const s = m.group.scale.x + ((n === active ? 1 : 0.0001) - m.group.scale.x) * k;
         m.group.scale.setScalar(Math.max(0.0001, s));
         m.group.visible = s > 0.02;

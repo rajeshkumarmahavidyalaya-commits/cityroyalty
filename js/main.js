@@ -4,6 +4,8 @@ import { loadJackets } from './jacket.js';
 import { initRing } from './carousel.js';
 import { products, belt, categories, formatINR, SALE_ENDS } from './data.js';
 
+const mark = (n) => performance.mark('cr:' + n);
+mark('main-start');
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -86,7 +88,9 @@ if (renderer) {
   camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   camera.position.set(0, 0.02, 3.6);
 
+  mark('renderer');
   scene.environment = buildStudioEnvironment(renderer);
+  mark('studio-env');
   scene.environmentIntensity = 1.8;
   addStudioLights(scene);
   const warm = new THREE.PointLight(0xffe2b8, 1.0, 8);
@@ -98,6 +102,7 @@ if (renderer) {
     maxAniso: renderer.capabilities.getMaxAnisotropy(),
     onProgress: (v) => setProgress(0.4 + v * 0.5),
   });
+  mark('jackets-loaded');
   rig = new THREE.Group();
   rig.add(jacket.root);
   scene.add(rig);
@@ -445,17 +450,24 @@ function tick(now) {
 }
 
 function finishLoading() {
+  mark('first-frame');
   setProgress(1);
-  // build the 3D product ring while the browser is idle, not while the visitor is scrolling toward it
-  (window.requestIdleCallback || ((f) => setTimeout(f, 800)))(() => startRing(), { timeout: 2500 });
-  const done = () => setTimeout(() => $('#loader')?.classList.add('is-done'), 250);
-  if (document.fonts?.ready) Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1800))]).then(done); else done();
+  // Idle-time work, after the page is usable: the product ring, then the women's jacket (model + shaders)
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 800));
+  idle(() => startRing(), { timeout: 2500 });
+  if (renderer) idle(() => jacket.preload('women').then(() => jacket.warmUp(renderer, scene, camera)).catch(() => {}), { timeout: 5000 });
+  // webfonts are preloaded and swap in when ready: wait for them only briefly so the loader never lingers on them
+  const done = () => setTimeout(() => $('#loader')?.classList.add('is-done'), 120);
+  if (document.fonts?.ready) Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 350))]).then(done); else done();
 }
 if (renderer) {
   applyResolution();
   rig.scale.setScalar(1.8); // representative load while timing frames
+  mark('pre-warm');
   jacket.warmUp(renderer, scene, camera);
+  mark('warmed');
   calibrate();
+  mark('calibrated');
 }
 requestAnimationFrame(tick);
 if (!renderer) finishLoading();
@@ -501,7 +513,7 @@ selectColour(0);
  *  Collection ring (lazy: created when the section nears the viewport)
  * ------------------------------------------------------------------ */
 const ringItems = [...products, { ...belt, short: 'Tan Belt' }];
-belt.gallery = ['assets/img/IMG_6061.jpg', 'assets/img/IMG_6026.jpg'];
+belt.gallery = ['assets/img/IMG_6061.webp', 'assets/img/IMG_6026.webp'];
 const D = { cat: $('#dCat'), name: $('#dName'), price: $('#dPrice'), desc: $('#dDesc'), sku: $('#dSku'), buy: $('#dBuy'), count: $('#dCount'), thumbs: $('#dThumbs') };
 function showDetail(i) {
   const p = ringItems[i];
@@ -528,9 +540,16 @@ showDetail(0);
 let ringStarted = false;
 function startRing() {
   if (ringStarted) return; ringStarted = true;
-  try {
-    initRing({ canvas: $('#ringCanvas'), items: ringItems, onSelect: showDetail, onOpen: (i) => openUrl(ringItems[i].url) });
-  } catch (e) { console.warn('Ring unavailable', e); $('#ring').innerHTML = '<p style="padding:2rem;text-align:center">3D view unavailable — see the product details below.</p>'; }
+  const make = () => {
+    try {
+      initRing({ canvas: $('#ringCanvas'), items: ringItems, onSelect: showDetail, onOpen: (i) => openUrl(ringItems[i].url) });
+    } catch (e) {
+      console.warn('Ring unavailable', e);
+      $('#ring').innerHTML = '<p style="padding:2rem;text-align:center">3D view unavailable — see the product details below.</p>';
+    }
+  };
+  // the card labels are drawn onto textures, so wait for the brand fonts first
+  if (document.fonts?.ready) document.fonts.ready.then(make, make); else make();
 }
 new IntersectionObserver((en) => { if (en[0].isIntersecting) startRing(); }, { rootMargin: '900px' }).observe($('#collection'));
 
@@ -541,8 +560,8 @@ const grid = $('#catGrid');
 categories.forEach((c) => {
   const li = document.createElement('li');
   li.className = 'cat' + (c.img ? '' : ' cat--plain');
-  const contain = c.img && /\.png$/.test(c.img);
-  li.innerHTML = `${c.img ? `<img src="${c.img}" alt="${c.name}" loading="lazy" class="${contain ? 'contain' : ''}" style="${c.pos ? `object-position:${c.pos}` : ''}">` : '<img src="assets/img/logo.png" alt="" class="crest" aria-hidden="true">'}
+  const contain = !!c.contain; // transparent product cut-outs sit inside the tile instead of filling it
+  li.innerHTML = `${c.img ? `<img src="${c.img}" alt="${c.name}" loading="lazy" class="${contain ? 'contain' : ''}" style="${c.pos ? `object-position:${c.pos}` : ''}">` : '<img src="assets/img/logo.webp" alt="" class="crest" aria-hidden="true">'}
     <a href="${c.url}" target="_blank" rel="noopener" aria-label="Shop ${c.name} on cityroyalty.in"><h3>${c.name}</h3><p>${c.blurb}</p></a><span class="go" aria-hidden="true">↗</span>`;
   grid.appendChild(li);
   if (!reduceMotion && matchMedia('(hover: hover)').matches) {
@@ -599,7 +618,7 @@ function renderSearch() {
   sShown = (q.length ? searchItems.filter((it) => q.every((w) => it.text.toLowerCase().includes(w))) : searchItems.slice(0, 8)).slice(0, 12);
   sSel = Math.min(sSel, Math.max(0, sShown.length - 1));
   sList.innerHTML = sShown.length
-    ? sShown.map((it, n) => `<li role="option" aria-selected="${n === sSel}"><a href="${it.url}" target="_blank" rel="noopener">${it.img ? `<img src="${it.img}" alt="" loading="lazy">` : '<img alt="" src="assets/img/logo.png" style="object-fit:contain;padding:6px">'}<span><b>${it.title}</b><small>${it.sub}</small></span></a></li>`).join('')
+    ? sShown.map((it, n) => `<li role="option" aria-selected="${n === sSel}"><a href="${it.url}" target="_blank" rel="noopener">${it.img ? `<img src="${it.img}" alt="" loading="lazy">` : '<img alt="" src="assets/img/logo.webp" style="object-fit:contain;padding:6px">'}<span><b>${it.title}</b><small>${it.sub}</small></span></a></li>`).join('')
     : '<li class="search__empty">No products match that. Try “biker”, “maroon” or “belt”.</li>';
 }
 function openSearch() { sBox.hidden = false; sInput.value = ''; sSel = 0; renderSearch(); sInput.focus(); }

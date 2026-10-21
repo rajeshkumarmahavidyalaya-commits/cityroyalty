@@ -6,10 +6,12 @@
   <title>City Royalty — Handcrafted Leather Jackets, India</title>
   <meta name="description" content="City Royalty — high quality handcrafted leather goods from India since 2018. Explore our leather jackets in an interactive 3D experience.">
   <meta name="theme-color" content="#efe8da">
-  <link rel="icon" href="assets/img/logo.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Manrope:wght@300..800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
+  <!-- start the big downloads immediately, in parallel with the stylesheet and scripts -->
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/Fraunces-normal.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/Fraunces-italic.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/Manrope-normal.woff2">
+  <link rel="preload" as="fetch" crossorigin href="assets/models/biker.glb">
   <link rel="stylesheet" href="css/style.css">
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -19,7 +21,7 @@
 
 <!-- preloader -->
 <div class="loader" id="loader" aria-hidden="true">
-  <img src="assets/img/logo.png" alt="" class="loader__logo">
+  <img src="assets/img/logo.webp" alt="" class="loader__logo">
   <div class="loader__bar"><span id="loaderBar"></span></div>
   <p>Stitching your jacket…</p>
 </div>
@@ -32,7 +34,7 @@
 <div class="hotspots" id="hotspots" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
-  <a class="nav__logo" href="#top" aria-label="City Royalty — home"><img src="assets/img/logo.png" alt="City Royalty"></a>
+  <a class="nav__logo" href="#top" aria-label="City Royalty — home"><img src="assets/img/logo.webp" alt="City Royalty"></a>
   <nav class="nav__links" aria-label="Primary">
     <a href="#story">Story</a>
     <a href="#anatomy">Anatomy</a>
@@ -137,7 +139,7 @@
             <a class="btn" id="pBuy" href="#" target="_blank" rel="noopener">Buy now on cityroyalty.in <span aria-hidden="true">↗</span></a>
           </div>
           <figure class="pinfo__photo">
-            <img id="pPhoto" src="assets/img/BIKBRNJK4-Mens-Brown-Leather-Biker-Jacket-3.jpg" alt="Product photo" loading="lazy">
+            <img id="pPhoto" src="assets/img/BIKBRNJK4-Mens-Brown-Leather-Biker-Jacket-3.webp" alt="Product photo" loading="lazy">
             <figcaption>In real life</figcaption>
           </figure>
         </div>
@@ -213,7 +215,7 @@
 <footer class="footer" data-theme="light">
   <div class="wrap footer__top">
     <div class="footer__brand">
-      <img src="assets/img/logo.png" alt="City Royalty">
+      <img src="assets/img/logo.webp" alt="City Royalty">
       <p>City Royalty was established in 2018 with a mission to bring authentic, high-quality leather goods to India.</p>
       <div class="social">
         <a href="https://www.facebook.com/CITYROYALTY" target="_blank" rel="noopener">Facebook</a>
