@@ -1,0 +1,246 @@
+import { z } from 'zod';
+import {
+  DISCOUNT_TYPES,
+  IMAGE_KINDS,
+  IMAGE_SLOTS,
+  MAX_QTY_PER_LINE,
+  ORDER_STATUSES,
+  PAYMENT_PROVIDERS,
+  PRODUCT_STATUSES,
+  RETURN_STATUSES,
+  SHIPMENT_STATUSES,
+  SORT_OPTIONS,
+} from './constants';
+
+/* ---------- primitives ---------- */
+export const objectId = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id');
+export const email = z.string().trim().toLowerCase().email().max(254);
+export const password = z
+  .string()
+  .min(10, 'Use at least 10 characters')
+  .max(128)
+  .refine((v) => /[a-zA-Z]/.test(v) && /\d/.test(v), 'Use letters and numbers');
+export const paise = z.number().int().min(0).max(100_000_000);
+export const slug = z.string().min(1).max(96).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const text = (max: number) => z.string().trim().max(max);
+
+/* ---------- address ---------- */
+export const indianPin = z.string().trim().regex(/^[1-9][0-9]{5}$/, 'Enter a valid 6-digit PIN code');
+export const indianPhone = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[\s\-()]/g, ''))
+  .pipe(z.string().regex(/^(\+91|0)?[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number'));
+
+export const addressSchema = z.object({
+  fullName: text(80).min(2, 'Enter the full name'),
+  phone: indianPhone,
+  line1: text(120).min(3, 'Enter the address'),
+  line2: text(120).optional().default(''),
+  city: text(60).min(2, 'Enter the city'),
+  state: text(60).min(2, 'Select the state'),
+  pin: indianPin,
+  country: z.literal('IN').default('IN'),
+});
+export type AddressInput = z.infer<typeof addressSchema>;
+
+/* ---------- auth ---------- */
+export const signupSchema = z.object({ name: text(80).min(2), email, password });
+export const loginSchema = z.object({ email, password: z.string().min(1).max(128) });
+export const forgotSchema = z.object({ email });
+export const resetSchema = z.object({ token: z.string().min(20).max(200), password });
+export const profileSchema = z.object({ name: text(80).min(2), phone: indianPhone.optional() });
+
+/* ---------- catalogue (admin write models) ---------- */
+export const variantInputSchema = z.object({
+  id: objectId.optional(),
+  sku: text(64).min(1),
+  options: z.record(z.string(), text(60)).default({}),
+  price: paise,
+  compareAtPrice: paise.nullable().optional(),
+  /** null = unknown (product cannot be published until entered or madeToOrder). */
+  stock: z.number().int().min(0).max(100000).nullable(),
+  madeToOrder: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+export const imageInputSchema = z.object({
+  id: objectId.optional(),
+  slot: z.enum(IMAGE_SLOTS),
+  kind: z.enum(IMAGE_KINDS),
+  assetId: z.string().min(1),
+  alt: text(240).min(1),
+  colour: text(60).optional(),
+  position: z.number().int().min(0).default(0),
+});
+
+export const seoSchema = z.object({
+  title: text(70).optional(),
+  description: text(170).optional(),
+  noindex: z.boolean().optional(),
+});
+
+export const productInputSchema = z.object({
+  title: text(160).min(2),
+  slug: slug.optional(),
+  sku: text(64).min(1),
+  description: text(8000).default(''),
+  highlights: z.array(text(200)).max(12).default([]),
+  material: text(400).optional(),
+  care: text(1200).optional(),
+  collections: z.array(slug).max(8).default([]),
+  options: z.array(z.object({ name: text(40), values: z.array(text(60)).min(1).max(40) })).max(3).default([]),
+  variants: z.array(variantInputSchema).min(1).max(120),
+  seo: seoSchema.default({}),
+  featured: z.boolean().default(false),
+  tags: z.array(text(40)).max(20).default([]),
+});
+export type ProductInput = z.infer<typeof productInputSchema>;
+
+export const productStatusSchema = z.object({ status: z.enum(PRODUCT_STATUSES) });
+
+export const collectionInputSchema = z.object({
+  title: text(80).min(2),
+  slug: slug.optional(),
+  parent: slug.nullable().optional(),
+  description: text(1200).default(''),
+  heroImage: text(300).nullable().optional(),
+  active: z.boolean().default(false),
+  position: z.number().int().default(0),
+  seo: seoSchema.default({}),
+});
+
+/* ---------- listing query ---------- */
+const csv = z
+  .string()
+  .optional()
+  .transform((v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []));
+export const productQuerySchema = z.object({
+  collection: slug.optional(),
+  q: text(80).optional(),
+  size: csv,
+  colour: csv,
+  material: csv,
+  minPrice: z.coerce.number().int().min(0).optional(),
+  maxPrice: z.coerce.number().int().min(0).optional(),
+  inStock: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
+  sort: z.enum(SORT_OPTIONS).default('featured'),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+  limit: z.coerce.number().int().min(1).max(60).default(24),
+  featured: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
+});
+export type ProductQuery = z.infer<typeof productQuerySchema>;
+
+/* ---------- cart / checkout ---------- */
+export const cartLineSchema = z.object({
+  productId: objectId,
+  variantId: objectId,
+  qty: z.number().int().min(1).max(MAX_QTY_PER_LINE),
+});
+export const cartInputSchema = z.object({
+  lines: z.array(cartLineSchema).max(30),
+  discountCode: text(40).optional(),
+  pin: indianPin.optional(),
+});
+export type CartInput = z.infer<typeof cartInputSchema>;
+
+export const checkoutSchema = z.object({
+  lines: z.array(cartLineSchema).min(1).max(30),
+  email,
+  shippingAddress: addressSchema,
+  billingSameAsShipping: z.boolean().default(true),
+  billingAddress: addressSchema.optional(),
+  discountCode: text(40).optional(),
+  provider: z.enum(PAYMENT_PROVIDERS),
+  notes: text(500).optional(),
+  /** Client-generated key so a double-click / retry cannot create two orders. */
+  idempotencyKey: z.string().min(16).max(80),
+  subscribe: z.boolean().optional(),
+});
+export type CheckoutInput = z.infer<typeof checkoutSchema>;
+
+export const verifyPaymentSchema = z.object({
+  orderNumber: text(24),
+  accessToken: z.string().min(16).max(128),
+  provider: z.enum(PAYMENT_PROVIDERS),
+  payload: z.record(z.string(), z.string()).default({}),
+});
+
+export const trackOrderSchema = z.object({ orderNumber: text(24).min(4), email });
+
+export const newsletterSchema = z.object({ email, source: text(40).optional() });
+
+/* ---------- admin ops ---------- */
+export const orderStatusUpdateSchema = z.object({ status: z.enum(ORDER_STATUSES), note: text(400).optional() });
+export const shipmentInputSchema = z.object({
+  carrier: text(60).min(2),
+  trackingNumber: text(80).min(3),
+  trackingUrl: z.string().url().optional(),
+  status: z.enum(SHIPMENT_STATUSES).default('label_created'),
+});
+export const refundSchema = z.object({ amount: paise.min(1), reason: text(300).min(2) });
+export const returnRequestSchema = z.object({
+  orderNumber: text(24),
+  lines: z.array(z.object({ variantId: objectId, qty: z.number().int().min(1).max(MAX_QTY_PER_LINE) })).min(1),
+  reason: text(500).min(5),
+  accessToken: z.string().optional(),
+});
+export const returnUpdateSchema = z.object({ status: z.enum(RETURN_STATUSES), note: text(400).optional() });
+export const inventoryAdjustSchema = z.object({
+  variantId: objectId,
+  stock: z.number().int().min(0).max(100000).nullable(),
+  reason: text(200).min(2),
+});
+export const discountInputSchema = z
+  .object({
+    code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,24}$/),
+    type: z.enum(DISCOUNT_TYPES),
+    value: z.number().int().min(0).max(100_000_000).default(0),
+    minSubtotal: paise.default(0),
+    maxUses: z.number().int().min(1).nullable().optional(),
+    startsAt: z.coerce.date().nullable().optional(),
+    endsAt: z.coerce.date().nullable().optional(),
+    active: z.boolean().default(true),
+  })
+  .refine((d) => d.type !== 'percent' || (d.value >= 1 && d.value <= 90), { message: 'Percent must be 1–90', path: ['value'] });
+
+export const articleInputSchema = z.object({
+  title: text(160).min(2),
+  slug: slug.optional(),
+  excerpt: text(300).default(''),
+  body: text(40000).default(''),
+  coverImage: text(300).nullable().optional(),
+  tags: z.array(text(40)).max(10).default([]),
+  status: z.enum(['draft', 'published']).default('draft'),
+  seo: seoSchema.default({}),
+});
+
+export const campaignInputSchema = z.object({
+  key: z.enum(['home-hero', 'home-editorial', 'announcement']),
+  headline: text(120).default(''),
+  subline: text(240).default(''),
+  ctaLabel: text(40).default(''),
+  ctaHref: text(200).default(''),
+  image: text(300).nullable().optional(),
+  imageAlt: text(200).default(''),
+  active: z.boolean().default(true),
+});
+
+export const settingsSchema = z.object({
+  storeName: text(80),
+  supportEmail: email.optional(),
+  supportPhone: text(30).optional(),
+  address: text(300).optional(),
+  social: z.object({ instagram: text(200).optional(), facebook: text(200).optional() }).default({}),
+  shipping: z.object({
+    freeThreshold: paise.nullable(),
+    flatRate: paise.nullable(),
+    estimate: text(120).optional(),
+    codEnabled: z.boolean().default(false),
+    codFee: paise.default(0),
+  }),
+  tax: z.object({ pricesIncludeTax: z.boolean().default(false), note: text(160).optional() }).default({ pricesIncludeTax: false }),
+  returns: z.object({ windowDays: z.number().int().min(0).max(90).nullable(), summary: text(400).optional() }).default({ windowDays: null }),
+  brandFacts: z.array(text(140)).max(8).default([]),
+});
+export type SettingsInput = z.infer<typeof settingsSchema>;
