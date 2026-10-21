@@ -21,7 +21,7 @@ function openUrl(url) {
  *  x is a fraction of the visible half-width, y/fx/fy/fz in world/model units,
  *  s scale, ry/rx/rz rotation, ex = exploded amount, snow = particle mode.
  * ------------------------------------------------------------------ */
-const P = (o) => ({ x: 0, y: 0, s: 1, ry: 0, rx: 0, rz: 0, ex: 0, fx: 0, fy: 0, fz: 0, snow: 0, abs: 0, f: '', ...o });
+const P = (o) => ({ x: 0, y: 0, s: 1, ry: 0, rx: 0, rz: 0, ex: 0, fx: 0, fy: 0, fz: 0, snow: 0, abs: 0, lk: 0, f: '', ...o });
 const POSES = {
   hero:  P({ x: 0.32, y: 0.02, s: 1.8, ry: -0.3, rx: 0.04 }),
   story: P({ x: 0.52, y: 0.0, s: 1.5, ry: -0.75, rz: 0.06 }),
@@ -33,9 +33,32 @@ const POSES = {
   sale:  P({ x: -0.5, y: 0.0, s: 1.55, ry: 0.8, rz: -0.07, snow: 1 }),
   away:  P({ x: 0.0, y: -0.2, s: 0.0001, ry: 1.2 }),
 };
+// Phone (portrait) poses. The jacket stays pinned in the upper ~45% of the screen, big enough to bleed past the
+// screen edges, while the text rides up underneath it. abs:1 = values are used as-is (no landscape adjustments).
+const PY = 0.43;
+const PP = (o) => P({ x: 0, y: PY, abs: 1, ...o });
+const POSES_P = {
+  hero:  PP({ y: 0.4, s: 1.28, ry: -0.35, rx: 0.04 }),
+  story: PP({ s: 1.2, ry: -0.2, rz: 0.04 }),
+  a0:    PP({ s: 1.2, ry: -0.4 }),
+  a1:    PP({ y: 0.5, s: 1.95, ry: -0.2, f: 'zip' }),
+  a2:    PP({ y: 0.5, s: 2.05, ry: 0.3, f: 'collar' }),
+  a3:    PP({ y: 0.42, s: 0.72, ry: 0.28, rx: 0.05, ex: 1.0 }),
+  colours: PP({ s: 1.3 }),
+  sale:  PP({ s: 1.2, ry: 0.5, rz: -0.04, snow: 1 }),
+  away:  PP({ y: 0.2, s: 0.0001, ry: 1.2 }),
+};
 const TRACKS = { anatomy: ['a0', 'a1', 'a2', 'a3'] };
-const KEYS = ['x', 'y', 's', 'ry', 'rx', 'rz', 'ex', 'fx', 'fy', 'fz', 'snow', 'abs'];
-const mixPose = (a, b, t) => { const o = {}; for (const k of KEYS) o[k] = a[k] + (b[k] - a[k]) * t; return o; };
+const KEYS = ['x', 'y', 's', 'ry', 'rx', 'rz', 'ex', 'fx', 'fy', 'fz', 'snow', 'abs', 'lk'];
+const mixPose = (a, b, t) => {
+  const o = {};
+  for (const k of KEYS) o[k] = a[k] + (b[k] - a[k]) * t;
+  // shrink out in the first half of a hand-off and grow in during the second half, so the jacket never
+  // lingers as a small floating copy while it travels between sections
+  if (b.s < 0.01 && a.s >= 0.01) o.s = a.s + (b.s - a.s) * clamp(t * 2);
+  else if (a.s < 0.01 && b.s >= 0.01) o.s = a.s + (b.s - a.s) * clamp(t * 2 - 1);
+  return o;
+};
 
 /* ------------------------------------------------------------------ *
  *  Boot the main scene
@@ -83,7 +106,7 @@ if (renderer) {
   setProgress(0.92);
 
   // dust motes (gold) that turn into snow in the winter section
-  const COUNT = 650;
+  const COUNT = innerWidth < 700 ? 320 : 650;
   const dPos = new Float32Array(COUNT * 3), dSeed = new Float32Array(COUNT);
   for (let i = 0; i < COUNT; i++) {
     dPos[i * 3] = (Math.random() - 0.5) * 7;
@@ -112,7 +135,7 @@ const themed = [...sections, $('.footer')];
 const poseSections = sections.filter((s) => s.dataset.pose || s.dataset.track);
 const steps = $$('.step');
 const nav = $('#nav');
-const bgLayers = $('.bgs');
+const progressEl = $('#progress'), wordmark = $('.hero__wordmark');
 
 /* ------------------------------------------------------------------ *
  *  Layout cache.
@@ -120,11 +143,12 @@ const bgLayers = $('.bgs');
  *  page is scrolling. Instead everything is measured once (in document coordinates) and
  *  re-measured only when the layout can have changed; the frame loop only reads scrollY.
  * ------------------------------------------------------------------ */
-const L = { sections: [], themed: [], steps: [], anchors: new Map(), cw: innerWidth, ch: innerHeight, dirty: true };
+const L = { sections: [], themed: [], steps: [], anchors: new Map(), cw: innerWidth, ch: innerHeight, docH: 1, dirty: true };
 function measure() {
   L.dirty = false;
   const sy = scrollY;
   const doc = (el) => { const r = el.getBoundingClientRect(); return { top: r.top + sy, bottom: r.bottom + sy, left: r.left, width: r.width, height: r.height }; };
+  L.docH = document.documentElement.scrollHeight;
   L.sections = poseSections.map(doc);
   L.themed = themed.map(doc);
   L.steps = steps.map((e) => { const r = doc(e); return r.top + r.height / 2; });
@@ -138,7 +162,7 @@ new ResizeObserver(invalidate).observe(document.body);
 
 // Sections can pin the jacket to an element (data-anchor): it is centred on that element and
 // scaled to fit it, so the HTML layout and the 3D pose can never drift apart.
-const JACKET_H = 0.5, JACKET_W = 0.9;
+const JACKET_H = 0.5, JACKET_W = 0.9, JACKET_W_PHONE = 0.7; // on phones the sleeves may bleed past the stage edges
 function anchored(el, pose) {
   const r = L.anchors.get(el);
   if (!r || !camera) return pose;
@@ -148,8 +172,8 @@ function anchored(el, pose) {
   const cy = r.top - sy + r.height / 2;
   const y = clamp(((vh / 2 - cy) / (vh / 2)) * halfH, -halfH * 1.7, halfH * 1.7);
   const x = (r.left + r.width / 2 - vw / 2) / (vw / 2);
-  const sc = Math.min(((r.height / vh) * 2 * halfH) / JACKET_H, ((r.width / vw) * 2 * halfW) / JACKET_W);
-  return { ...pose, y, x, s: sc, abs: 1 };
+  const sc = Math.min(((r.height / vh) * 2 * halfH) / JACKET_H, ((r.width / vw) * 2 * halfW) / (vw / vh < 0.95 ? JACKET_W_PHONE : JACKET_W));
+  return { ...pose, y, x, s: sc, abs: 1, lk: 1 };
 }
 // close-up poses name a part of the jacket ('zip', 'collar'); resolve it for whichever model is showing
 function withFocus(pose) {
@@ -157,13 +181,11 @@ function withFocus(pose) {
   const v = jacket.focus(pose.f);
   return { ...pose, fx: v.x, fy: v.y, fz: v.z };
 }
-// On portrait screens the text needs the whole width, so the jacket sits out these sections.
-const PORTRAIT_SWAP = { story: 'away', sale: 'away' };
+const isPortrait = () => L.cw / L.ch < 0.95;
 function sectionKeys(el) {
-  if (el.dataset.track) return TRACKS[el.dataset.track].map((k) => withFocus(POSES[k]));
-  const portrait = L.cw / L.ch < 0.95;
-  const name = (portrait && PORTRAIT_SWAP[el.dataset.pose]) || el.dataset.pose;
-  return [anchored(el, POSES[name])];
+  const table = isPortrait() ? POSES_P : POSES;
+  if (el.dataset.track) return TRACKS[el.dataset.track].map((k) => withFocus(table[k]));
+  return [anchored(el, table[el.dataset.pose])];
 }
 
 function targetPose() {
@@ -191,6 +213,13 @@ function targetPose() {
       state.stepF = f;
       steps.forEach((s, n) => s.classList.toggle('is-active', Math.abs(f - n) < 0.55));
     }
+  }
+
+  // slow scroll-linked turn: the jacket rotates while you read (data-spin = radians across the whole section)
+  const spin = parseFloat(el.dataset.spin || 0);
+  if (spin && !reduceMotion) {
+    const u = clamp((vc - rects[idx].top) / (rects[idx].bottom - rects[idx].top));
+    pose = { ...pose, ry: pose.ry + (u - 0.5) * spin };
   }
 
   // blend across the boundary with the neighbouring section
@@ -340,6 +369,9 @@ function tick(now) {
   if (resizePending && renderer) checkResize();
   watchFrameRate(dtMs);
 
+  const maxScroll = Math.max(1, L.docH - innerHeight);
+  progressEl.style.transform = `scaleX(${clamp(scrollY / maxScroll).toFixed(4)})`;
+  if (scrollY < innerHeight * 1.2) wordmark.style.transform = `translate3d(0, ${(scrollY * 0.18).toFixed(1)}px, 0)`;
   const scrolled = scrollY > 40;
   if (scrolled !== navScrolled) { navScrolled = scrolled; nav.classList.toggle('is-scrolled', scrolled); }
   const theme = currentTheme();
@@ -350,6 +382,11 @@ function tick(now) {
   if (!cur) cur = { ...tgt };
   const k = 1 - Math.exp(-dt * (reduceMotion ? 20 : 8.5)); // quick enough to feel attached to the scroll, smooth enough to hide wheel steps
   for (const key of KEYS) cur[key] += (tgt[key] - cur[key]) * k;
+  // a jacket pinned to a page element (configurator stage) must track the page itself, not trail behind a fast flick
+  if (tgt.lk > 0.01) {
+    const kf = k + ((1 - Math.exp(-dt * 38)) - k) * tgt.lk;
+    cur.x += (tgt.x - cur.x) * kf; cur.y += (tgt.y - cur.y) * kf; cur.s += (tgt.s - cur.s) * kf;
+  }
 
   // responsive layout: on portrait screens the jacket moves above the text
   const aspect = L.cw / L.ch;
@@ -358,10 +395,9 @@ function tick(now) {
   const halfW = halfH * aspect;
   const abs = cur.abs > 0.5;
   const fit = abs ? 1 : clamp((aspect + 0.1) / 1.1, 0.5, 1);
-  const px = portrait && !abs ? 0 : cur.x * halfW;
-  let py = cur.y + (portrait && !abs ? 0.34 * Math.min(1, cur.s) : 0);
-  if (portrait && state.section === 'anatomy') py = 0.38;
-  const sc = Math.max(0.0001, cur.s * fit * (portrait && cur.fx ? 0.62 : 1));
+  const px = cur.x * halfW;
+  const py = cur.y;
+  const sc = Math.max(0.0001, cur.s * fit);
 
   // yaw: drag (springs home outside the configurator) + idle sway + pointer parallax
   if (!state.dragging) {

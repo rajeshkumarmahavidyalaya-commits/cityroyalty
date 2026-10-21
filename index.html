@@ -27,6 +27,7 @@
 <!-- fixed 3D stage (the hero jacket lives here for the whole scroll) -->
 <div class="bgs" aria-hidden="true"><i data-t="light"></i><i data-t="dark"></i><i data-t="ink"></i></div>
 <canvas id="stage" aria-hidden="true"></canvas>
+<div class="progress" id="progress" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 <div class="hotspots" id="hotspots" aria-hidden="true"></div>
 
@@ -49,7 +50,7 @@
 <main id="top">
 
   <!-- 01 HERO -->
-  <section class="hero" id="hero" data-pose="hero" data-theme="light">
+  <section class="hero" id="hero" data-pose="hero" data-spin="0.7" data-theme="light">
     <div class="hero__wordmark" aria-hidden="true"><span>CITY</span><span>ROYALTY</span></div>
     <div class="hero__inner">
       <p class="kicker"><span class="dot"></span> Est. 2018 · Handcrafted in India</p>
@@ -70,7 +71,7 @@
   </section>
 
   <!-- 02 STORY -->
-  <section class="story" id="story" data-pose="story" data-theme="light">
+  <section class="story" id="story" data-pose="story" data-spin="1.6" data-theme="light">
     <div class="wrap story__grid">
       <div class="story__copy">
         <p class="kicker">The jacket</p>
@@ -174,7 +175,7 @@
   </section>
 
   <!-- 06 SALE -->
-  <section class="sale" id="sale" data-pose="sale" data-theme="ink">
+  <section class="sale" id="sale" data-pose="sale" data-spin="1.4" data-theme="ink">
     <div class="wrap sale__inner">
       <p class="kicker">New winter collection</p>
       <h2 class="sale__big"><span>50%</span> <em>OFF</em></h2>

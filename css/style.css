@@ -376,3 +376,33 @@ section { position: relative; }
 .hotspot span { order: 2; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 800; padding: 7px 12px; border-radius: 999px; background: rgba(21, 16, 12, 0.72); border: 1px solid rgba(201, 162, 75, 0.45); white-space: nowrap; }
 @keyframes ping { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
 @media (max-width: 560px) { .hotspot::before { width: 18px; } .hotspot span { font-size: 9.5px; padding: 5px 9px; } .nav__search span { display: none; } }
+
+/* ---------- scroll progress ---------- */
+.progress { position: fixed; left: 0; right: 0; top: 0; height: 2px; z-index: 70; background: linear-gradient(90deg, var(--cognac), var(--brass)); transform-origin: 0 50%; transform: scaleX(0); pointer-events: none; }
+
+/* ---------- phones / portrait: jacket pinned in the upper ~45% of the screen ----------
+ * The canvas is drawn ABOVE the copy here, so text rides up and slides behind the jacket instead of
+ * colliding with it. Copy sits in the lower half of each section. */
+@media (max-aspect-ratio: 19/20) {
+  #stage { z-index: 4; }
+
+  .hero { min-height: 100vh; min-height: 100svh; padding: 0 var(--gutter) 5svh; align-items: flex-end; }
+  .hero__wordmark { justify-content: flex-start; padding-top: 12svh; font-size: clamp(96px, 30vw, 160px); }
+  .hero__inner { max-width: none; }
+  .hero__drag { left: 0; right: 0; top: 10%; bottom: 52%; }
+
+  .story { min-height: 100svh; align-items: flex-end; padding: 54svh 0 10svh; }
+  .story__grid { gap: 4svh; }
+
+  .anatomy { padding-top: 0; }
+  .anatomy__head { padding-top: 56svh; margin-bottom: 0; }
+  .step { justify-content: flex-end; padding-bottom: 9svh; max-width: none; transform: translateY(16px); }
+  .step.is-active { transform: none; }
+  .step p { background: none; padding: 0; }
+
+  .colours { padding-top: 12svh; }
+  .colours__grid { min-height: 94svh; }
+
+  .sale { min-height: 100svh; align-items: flex-end; padding: 54svh 0 8svh; }
+  .sale__big { font-size: clamp(92px, 30vw, 160px); }
+}
