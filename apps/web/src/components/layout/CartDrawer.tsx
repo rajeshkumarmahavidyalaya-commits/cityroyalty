@@ -131,14 +131,11 @@ export function CartDrawer({ freeThreshold }: { freeThreshold: number | null }) 
           <div className="space-y-4 border-t border-line bg-white/60 px-5 py-5" aria-busy={pricing}>
             <DiscountField />
             <Totals />
-            <Link
-              href="/checkout"
-              onClick={() => setOpen(false)}
-              aria-disabled={!priced?.ok}
-              className={`btn btn-primary w-full ${priced?.ok ? '' : 'pointer-events-none opacity-45'}`}
-            >
-              Checkout
-            </Link>
+            {priced?.ok ? (
+              <Link href="/checkout" onClick={() => setOpen(false)} className="btn btn-primary w-full">Checkout</Link>
+            ) : (
+              <button type="button" className="btn btn-primary w-full" disabled>Checkout</button>
+            )}
             <Link href="/cart" onClick={() => setOpen(false)} className="block text-center text-xs underline underline-offset-4">View full bag</Link>
           </div>
         </>

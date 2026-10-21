@@ -11,7 +11,7 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('[role=alert]:not(#__next-route-announcer__)')).toContainText('does not have admin access');
     await adminLogin(page, 'content@e2e.test');
-    await expect(page.getByRole('link', { name: 'Products' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Products', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Orders' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     await page.goto(`${ADMIN}/orders`);
@@ -23,7 +23,7 @@ test.describe('admin', () => {
     await page.goto(`${ADMIN}/products/new`);
     await page.getByLabel('Title', { exact: true }).fill('E2E Heritage Satchel');
     await page.getByLabel('SKU', { exact: true }).fill('E2E-1');
-    await page.getByLabel('Description').fill('A test product created by the end-to-end suite.');
+    await page.getByLabel('Description', { exact: true }).fill('A test product created by the end-to-end suite.');
     await page.getByLabel('Option names (comma separated)').fill('Color');
     await page.getByLabel('Variant SKU').fill('E2E-1-TAN');
     await page.getByLabel('Color', { exact: true }).fill('Tan');
@@ -89,7 +89,7 @@ test.describe('admin', () => {
     await shop.getByLabel('Order number').fill(number);
     await shop.getByLabel('Email').fill('fulfil@example.com');
     await shop.getByRole('button', { name: 'Track order' }).click();
-    await expect(shop.getByText('DL99887766')).toBeVisible();
+    await expect(shop.getByText('Delhivery · DL99887766')).toBeVisible();
 
     await page.goto(`${ADMIN}/inventory`);
     await page.getByRole('searchbox').or(page.getByLabel('Search inventory')).fill('CRBLMGN03');

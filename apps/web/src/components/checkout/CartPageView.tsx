@@ -21,7 +21,7 @@ export function CartPageView() {
           <aside className="h-fit space-y-5 bg-white p-6">
             <DiscountField />
             <Totals />
-            <Link href="/checkout" aria-disabled={!priced?.ok} className={`btn btn-primary w-full ${priced?.ok ? '' : 'pointer-events-none opacity-45'}`}>Checkout</Link>
+            {priced?.ok ? <Link href="/checkout" className="btn btn-primary w-full">Checkout</Link> : <button type="button" className="btn btn-primary w-full" disabled>Checkout</button>}
             <Link href="/collections/all" className="block text-center text-xs underline underline-offset-4">Continue shopping</Link>
           </aside>
         </div>

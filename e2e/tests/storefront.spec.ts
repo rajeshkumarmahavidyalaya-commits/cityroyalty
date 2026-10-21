@@ -83,7 +83,7 @@ test.describe('storefront', () => {
     await page.reload();
     await expect(page.getByRole('button', { name: /Open bag, 2 items/ })).toBeVisible();
     await page.getByRole('button', { name: /Open bag/ }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).first().click();
     await expect(page.getByText('Your bag is empty')).toBeVisible();
   });
 
