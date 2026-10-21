@@ -1,17 +1,22 @@
 {
-  "name": "city-royalty-3d",
-  "version": "1.1.0",
+  "name": "cityroyalty",
   "private": true,
-  "description": "City Royalty — scroll-driven 3D leather jacket experience built with three.js",
-  "type": "module",
+  "version": "2.0.0",
+  "description": "City Royalty — premium leather e-commerce platform (storefront, admin, API)",
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=20.11" },
   "scripts": {
-    "start": "npx --yes serve -l 8080 .",
-    "build": "node tools/build.mjs",
-    "build:artifact": "node tools/build.mjs --artifact",
-    "preview": "npx --yes serve -l 8080 dist"
+    "dev:api": "npm run dev -w @cityroyalty/api",
+    "dev:web": "npm run dev -w @cityroyalty/web",
+    "dev:admin": "npm run dev -w @cityroyalty/admin",
+    "build": "npm run build -w @cityroyalty/api && npm run build -w @cityroyalty/web && npm run build -w @cityroyalty/admin",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "showcase": "npm run build -w @cityroyalty/showcase"
   },
   "devDependencies": {
-    "esbuild": "0.24.0",
-    "three": "0.170.0"
+    "typescript": "^5.9.0"
   }
 }

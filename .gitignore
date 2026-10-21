@@ -1,4 +1,14 @@
 node_modules/
 dist/
 dist-artifact/
+.next/
+.turbo/
 .DS_Store
+.env
+.env.*
+!.env.example
+storage/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo

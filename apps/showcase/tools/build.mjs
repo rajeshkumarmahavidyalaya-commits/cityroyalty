@@ -6,6 +6,7 @@
 // and runnable without a build (`npm start`).
 import { build, transform } from 'esbuild';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,7 +38,7 @@ const result = await build({
   entryNames: 'app-[hash]',
   chunkNames: 'chunk-[hash]',
   legalComments: 'none',
-  alias: { three: join(root, 'node_modules/three/build/three.module.js') },
+  alias: { three: createRequire(import.meta.url).resolve('three/build/three.module.js') },
   loader: { '.glb': 'base64' },
   plugins: [swapModelSource],
   metafile: true,
