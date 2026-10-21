@@ -109,9 +109,9 @@ export function ProductPurchase({ product: p, sizeGuideHtml, onColour, compact, 
                   type="button"
                   role="radio"
                   aria-checked={active}
-                  aria-label={`${o.name} ${val}${avail ? '' : ' (sold out)'}`}
+                  aria-label={`${o.name} ${isSize(o.name) ? prettySize(val) : val}${avail ? '' : ' (sold out)'}`}
                   onClick={() => { setSel((s) => ({ ...s, [o.name]: val })); setErr(''); }}
-                  className={`relative min-h-11 min-w-11 border px-4 text-sm transition-colors ${active ? 'border-royal bg-royal text-ivory' : 'border-stone hover:border-royal'} ${avail ? '' : 'text-muted/60 line-through decoration-[0.5px]'}`}
+                  className={`relative min-h-11 min-w-11 border px-4 text-sm transition-colors ${active ? 'border-royal bg-royal text-ivory' : 'border-stone hover:border-royal'} ${avail ? '' : 'text-muted line-through decoration-[0.5px]'}`}
                 >
                   {colour && <span className="mr-2 inline-block h-3 w-3 rounded-full align-[-1px] ring-1 ring-current/40" style={{ background: colour }} />}
                   {isSize(o.name) ? prettySize(val) : val}

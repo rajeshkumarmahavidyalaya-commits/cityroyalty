@@ -9,7 +9,7 @@ test.describe('admin', () => {
     await page.getByLabel('Email').fill('customer@e2e.test');
     await page.getByLabel('Password').fill('E2e-password-1');
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('alert')).toContainText('does not have admin access');
+    await expect(page.locator('[role=alert]:not(#__next-route-announcer__)')).toContainText('does not have admin access');
     await adminLogin(page, 'content@e2e.test');
     await expect(page.getByRole('link', { name: 'Products' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Orders' })).toHaveCount(0);
@@ -21,7 +21,7 @@ test.describe('admin', () => {
   test('product workflow: draft → blockers → photo → review → publish → visible on storefront', async ({ page, browser }, info) => {
     await adminLogin(page, 'manager@e2e.test');
     await page.goto(`${ADMIN}/products/new`);
-    await page.getByLabel('Title').fill('E2E Heritage Satchel');
+    await page.getByLabel('Title', { exact: true }).fill('E2E Heritage Satchel');
     await page.getByLabel('SKU', { exact: true }).fill('E2E-1');
     await page.getByLabel('Description').fill('A test product created by the end-to-end suite.');
     await page.getByLabel('Option names (comma separated)').fill('Color');

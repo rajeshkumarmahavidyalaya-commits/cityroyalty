@@ -30,7 +30,7 @@ test.describe('commerce edge cases', () => {
     await expect(a.getByRole('button', { name: 'Simulate success' })).toBeVisible();
     // b now sees the unit gone
     await b.getByRole('button', { name: /Continue to payment/ }).click();
-    await expect(b.getByRole('alert').first()).toBeVisible();
+    await expect(b.locator('[role=alert]:not(#__next-route-announcer__)').first()).toBeVisible();
     await a.getByRole('button', { name: 'Simulate success' }).click();
     await expect(a.getByRole('heading', { name: 'Your order is confirmed' })).toBeVisible();
   });

@@ -65,7 +65,7 @@ test.describe('storefront', () => {
     await expect(page.getByRole('radio', { name: /Size S \(42\) \(sold out\)/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add to bag' }).first()).toBeEnabled();
     await page.getByRole('button', { name: 'Add to bag' }).first().click(); // no size chosen
-    await expect(page.getByRole('alert').filter({ hasText: /select your size/i })).toBeVisible();
+    await expect(page.locator('[role=alert]:not(#__next-route-announcer__)').filter({ hasText: /select your size/i })).toBeVisible();
     expect((await page.goto('/products/mens-dark-green-leather'))?.status()).toBe(404);
   });
 
@@ -113,6 +113,6 @@ test.describe('storefront', () => {
     await expect(page.getByRole('heading', { name: `Order ${number}` })).toBeVisible();
     await page.getByLabel('Email').fill('wrong@example.com');
     await page.getByRole('button', { name: 'Track order' }).click();
-    await expect(page.getByRole('alert')).toContainText("couldn’t find");
+    await expect(page.locator('[role=alert]:not(#__next-route-announcer__)')).toContainText("couldn’t find");
   });
 });

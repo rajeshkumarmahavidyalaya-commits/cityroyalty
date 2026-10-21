@@ -16,7 +16,7 @@ export async function fillCheckout(page: Page, email = 'buyer@example.com') {
   await page.getByLabel('Mobile number').fill('9876543210');
   await page.getByLabel('PIN code').fill('560001');
   await page.getByLabel('Address', { exact: true }).fill('12 MG Road');
-  await page.getByLabel('City').fill('Bengaluru');
+  await page.getByLabel('City', { exact: true }).fill('Bengaluru');
   await page.getByLabel('State').selectOption('Karnataka');
 }
 

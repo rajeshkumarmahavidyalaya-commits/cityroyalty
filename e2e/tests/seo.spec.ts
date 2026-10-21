@@ -35,9 +35,11 @@ test.describe('SEO & redirects', () => {
       ['/leather-care/', '/journal/leather-care'],
     ];
     for (const [from, to] of cases) {
-      const r = await request.get(from, { maxRedirects: 0 });
-      expect(r.status(), from).toBe(308 === r.status() ? 308 : 301);
-      expect(new URL(r.headers().location!, 'http://x').pathname, from).toBe(to);
+      const first = await request.get(from, { maxRedirects: 0 });
+      expect([301, 308], `${from} first hop`).toContain(first.status());
+      const final = await request.get(from); // follow the chain (trailing-slash normalisation may add a hop)
+      expect(new URL(final.url()).pathname, from).toBe(to);
+      expect(final.status(), from).toBe(200);
     }
   });
 
