@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { expect, test } from '@playwright/test';
@@ -39,18 +40,18 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(page.getByText('Saved.')).toBeVisible();
 
-    const png = path.join(info.outputPath('e2e.png'));
+    const png = path.join(os.tmpdir(), `cr-e2e-${info.workerIndex}-${Date.now()}.png`);
     await sharp({ create: { width: 900, height: 1100, channels: 3, background: '#8B5E3C' } }).png().toFile(png);
-    await page.getByLabel(/Image file/).setInputFiles(png);
-    await page.getByLabel('Kind').selectOption('concept');
-    await page.getByLabel('Alt text', { exact: true }).fill('Concept render');
+    await page.locator('#file').setInputFiles(png);
+    await page.locator('#kind').selectOption('concept');
+    await page.locator('#alt').fill('Concept render');
     await page.getByRole('button', { name: 'Upload' }).click();
     await expect(page.getByText(/uploaded and optimised/)).toBeVisible();
     await expect(page.getByText(/Only concept images/)).toBeVisible(); // concept art does not unlock publishing
 
-    await page.getByLabel(/Image file/).setInputFiles(png);
-    await page.getByLabel('Kind').selectOption('photo');
-    await page.getByLabel('Alt text', { exact: true }).fill('Tan satchel, front');
+    await page.locator('#file').setInputFiles(png);
+    await page.locator('#kind').selectOption('photo');
+    await page.locator('#alt').fill('Tan satchel, front');
     await page.getByRole('button', { name: 'Upload' }).click();
     await expect(page.getByText('All publication checks pass.')).toBeVisible();
     await page.getByRole('button', { name: 'Send to review' }).click();
