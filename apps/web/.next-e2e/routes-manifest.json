@@ -1,0 +1,380 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    },
+    {
+      "source": "/product/:slug",
+      "destination": "/products/:slug",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/product(?:/([^/]+?))(?:/)?$"
+    },
+    {
+      "source": "/product-category/jacket/mens-jacket",
+      "destination": "/collections/mens-jacket",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/product-category/jacket/mens-jacket(?:/)?$"
+    },
+    {
+      "source": "/product-category/jacket/womens-jacket",
+      "destination": "/collections/womens-jacket",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/product-category/jacket/womens-jacket(?:/)?$"
+    },
+    {
+      "source": "/product-category/jacket",
+      "destination": "/collections/jacket",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/product-category/jacket(?:/)?$"
+    },
+    {
+      "source": "/product-category/:slug",
+      "destination": "/collections/:slug",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/product-category(?:/([^/]+?))(?:/)?$"
+    },
+    {
+      "source": "/shop",
+      "destination": "/collections/all",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/shop(?:/)?$"
+    },
+    {
+      "source": "/new-shop",
+      "destination": "/collections/all",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/new-shop(?:/)?$"
+    },
+    {
+      "source": "/shop-shop-wooshop-v2",
+      "destination": "/collections/all",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/shop-shop-wooshop-v2(?:/)?$"
+    },
+    {
+      "source": "/about-us-2",
+      "destination": "/pages/about",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/about-us-2(?:/)?$"
+    },
+    {
+      "source": "/refund_returns",
+      "destination": "/pages/refund-and-returns",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/refund_returns(?:/)?$"
+    },
+    {
+      "source": "/privacy-policy",
+      "destination": "/pages/privacy-policy",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/privacy-policy(?:/)?$"
+    },
+    {
+      "source": "/faqs",
+      "destination": "/pages/faqs",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/faqs(?:/)?$"
+    },
+    {
+      "source": "/my-account",
+      "destination": "/account",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/my-account(?:/)?$"
+    },
+    {
+      "source": "/blog",
+      "destination": "/journal",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/blog(?:/)?$"
+    },
+    {
+      "source": "/types-of-leather",
+      "destination": "/journal/types-of-leather",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/types-of-leather(?:/)?$"
+    },
+    {
+      "source": "/leather-care",
+      "destination": "/journal/leather-care",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/leather-care(?:/)?$"
+    },
+    {
+      "source": "/how-to-spot-fake-leather",
+      "destination": "/journal/how-to-spot-fake-leather",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/how-to-spot-fake-leather(?:/)?$"
+    },
+    {
+      "source": "/genuine-leather-jackets",
+      "destination": "/journal/genuine-leather-jackets",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/genuine-leather-jackets(?:/)?$"
+    },
+    {
+      "source": "/sponsoring-photography-with-poi",
+      "destination": "/journal/sponsoring-photography-with-poi",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/sponsoring-photography-with-poi(?:/)?$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=(self \"https://checkout.razorpay.com\" \"https://js.stripe.com\")"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ],
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    },
+    {
+      "source": "/models/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ],
+      "regex": "^/models(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    }
+  ],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [
+      {
+        "source": "/api/v1/:path*",
+        "destination": "http://localhost:4100/api/v1/:path*",
+        "regex": "^/api/v1(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+      },
+      {
+        "source": "/media/:path*",
+        "destination": "http://localhost:4100/media/:path*",
+        "regex": "^/media(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+      }
+    ],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/account/orders/[number]",
+      "regex": "^/account/orders/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPnumber": "nxtPnumber"
+      },
+      "namedRegex": "^/account/orders/(?<nxtPnumber>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/collections/[slug]",
+      "regex": "^/collections/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/collections/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/journal/[slug]",
+      "regex": "^/journal/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/journal/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/pages/[slug]",
+      "regex": "^/pages/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/pages/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/products/[slug]",
+      "regex": "^/products/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/products/(?<nxtPslug>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/account",
+      "regex": "^/account(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/account(?:/)?$"
+    },
+    {
+      "page": "/account/addresses",
+      "regex": "^/account/addresses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/account/addresses(?:/)?$"
+    },
+    {
+      "page": "/account/orders",
+      "regex": "^/account/orders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/account/orders(?:/)?$"
+    },
+    {
+      "page": "/account/profile",
+      "regex": "^/account/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/account/profile(?:/)?$"
+    },
+    {
+      "page": "/account/wishlist",
+      "regex": "^/account/wishlist(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/account/wishlist(?:/)?$"
+    },
+    {
+      "page": "/api/revalidate",
+      "regex": "^/api/revalidate(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/revalidate(?:/)?$"
+    },
+    {
+      "page": "/cart",
+      "regex": "^/cart(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/cart(?:/)?$"
+    },
+    {
+      "page": "/checkout",
+      "regex": "^/checkout(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checkout(?:/)?$"
+    },
+    {
+      "page": "/checkout/failed",
+      "regex": "^/checkout/failed(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checkout/failed(?:/)?$"
+    },
+    {
+      "page": "/checkout/success",
+      "regex": "^/checkout/success(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checkout/success(?:/)?$"
+    },
+    {
+      "page": "/forgot-password",
+      "regex": "^/forgot\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/forgot\\-password(?:/)?$"
+    },
+    {
+      "page": "/journal",
+      "regex": "^/journal(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/journal(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/reset-password",
+      "regex": "^/reset\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reset\\-password(?:/)?$"
+    },
+    {
+      "page": "/robots.txt",
+      "regex": "^/robots\\.txt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/robots\\.txt(?:/)?$"
+    },
+    {
+      "page": "/search",
+      "regex": "^/search(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/search(?:/)?$"
+    },
+    {
+      "page": "/signup",
+      "regex": "^/signup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/signup(?:/)?$"
+    },
+    {
+      "page": "/sitemap.xml",
+      "regex": "^/sitemap\\.xml(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sitemap\\.xml(?:/)?$"
+    },
+    {
+      "page": "/track-order",
+      "regex": "^/track\\-order(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/track\\-order(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

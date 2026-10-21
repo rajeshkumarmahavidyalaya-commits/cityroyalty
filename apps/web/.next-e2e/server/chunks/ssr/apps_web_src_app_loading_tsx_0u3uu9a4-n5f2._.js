@@ -1,0 +1,3 @@
+module.exports=[41925,a=>{"use strict";var b=a.i(7997);a.s(["default",0,function(){return(0,b.jsxs)("div",{className:"container-x py-24","aria-busy":"true","aria-live":"polite",children:[(0,b.jsx)("div",{className:"skeleton h-10 w-64"}),(0,b.jsx)("div",{className:"mt-10 grid grid-cols-2 gap-6 md:grid-cols-4",children:Array.from({length:8}).map((a,c)=>(0,b.jsx)("div",{className:"skeleton aspect-[4/5]"},c))}),(0,b.jsx)("span",{className:"sr-only",children:"Loading…"})]})}])},92195,function(a){a.n(a.i(41925))}];
+
+//# sourceMappingURL=apps_web_src_app_loading_tsx_0u3uu9a4-n5f2._.js.map

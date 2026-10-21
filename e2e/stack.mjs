@@ -38,9 +38,10 @@ export async function up() {
   await run('npx', ['tsx', 'apps/api/scripts/seed-e2e.ts'], { env });
   children.push(spawn('npx', ['tsx', 'apps/api/src/server.ts'], { cwd: root, env, stdio: 'inherit' }));
   await waitFor(`http://localhost:${PORTS.api}/health`, 'API');
+  const nextEnv = { ...env, NODE_ENV: 'production' }; // Next must build/run as production
   for (const app of ['web', 'admin']) {
-    if (!existsSync(path.join(root, `apps/${app}/.next-e2e/BUILD_ID`)) || process.env.E2E_REBUILD) await run('npx', ['next', 'build'], { cwd: path.join(root, `apps/${app}`), env });
-    children.push(spawn('npx', ['next', 'start', '-p', String(PORTS[app])], { cwd: path.join(root, `apps/${app}`), env, stdio: 'inherit' }));
+    if (!existsSync(path.join(root, `apps/${app}/.next-e2e/BUILD_ID`)) || process.env.E2E_REBUILD) await run('npx', ['next', 'build'], { cwd: path.join(root, `apps/${app}`), env: nextEnv });
+    children.push(spawn('npx', ['next', 'start', '-p', String(PORTS[app])], { cwd: path.join(root, `apps/${app}`), env: nextEnv, stdio: 'inherit' }));
   }
   await waitFor(`http://localhost:${PORTS.web}/`, 'web');
   await waitFor(`http://localhost:${PORTS.admin}/login`, 'admin');

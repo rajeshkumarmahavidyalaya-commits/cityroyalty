@@ -1,0 +1,3 @@
+module.exports=[50320,a=>{"use strict";var b=a.i(7997);let c={width:22,height:22,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.4,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":!0};a.s(["L",0,a=>(0,b.jsx)("svg",{...c,...a,children:(0,b.jsx)("path",{d:"M4 12h16m-6-6 6 6-6 6"})}),"e",0,({dir:a="down",...d})=>(0,b.jsx)("svg",{...c,...d,style:{transform:`rotate(${{down:0,up:180,left:90,right:-90}[a]}deg)`,...d.style},children:(0,b.jsx)("path",{d:"m6 9 6 6 6-6"})})])}];
+
+//# sourceMappingURL=apps_web_src_components_ui_Icons_tsx_1tml5iwj36rlz._.js.map
