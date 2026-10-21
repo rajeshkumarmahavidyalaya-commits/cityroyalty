@@ -1,3 +1,0 @@
-(()=>{"use strict";module.exports=[54903,a=>{let b=(0,a.i(11857).registerClientReference)(function(){throw Error("Attempted to call Newsletter() from the server but Newsletter is on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.")},"[project]/apps/web/src/components/layout/Newsletter.tsx","Newsletter");a.s(["Newsletter",0,b])},87198,a=>{var b=a.i(54903);a.n(b)}]})();
-
-//# sourceMappingURL=apps_web_src_components_layout_Newsletter_tsx_0xpaupjmxw-ki._.js.map
