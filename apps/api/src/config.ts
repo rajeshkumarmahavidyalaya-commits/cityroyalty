@@ -30,6 +30,8 @@ const schema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   PAYMENT_MOCK_ENABLED: bool,
+  /** Test/dev convenience (e2e suite). Ignored in production. */
+  RATE_LIMIT_DISABLED: bool,
   MOCK_WEBHOOK_SECRET: z.string().optional(),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('City Royalty <orders@cityroyalty.in>'),
@@ -51,6 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     ...raw,
     isProd: prod,
     isTest: raw.NODE_ENV === 'test',
+    rateLimitOff: raw.NODE_ENV === 'test' || (raw.RATE_LIMIT_DISABLED && !prod),
     jwtSecret,
     corsOrigins: raw.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     trustProxy: /^\d+$/.test(raw.TRUST_PROXY) ? Number(raw.TRUST_PROXY) : raw.TRUST_PROXY === 'true',

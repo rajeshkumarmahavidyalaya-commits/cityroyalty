@@ -39,7 +39,7 @@ export function buildDeps(config: Config, overrides: Partial<Pick<Deps, 'adapter
   const mailer = overrides.mailer ?? createMailer(config);
   const storage = overrides.storage ?? createStorage(config);
   const limiter = (windowMs: number, limit: number): RequestHandler =>
-    config.isTest
+    config.rateLimitOff
       ? (_q, _s, n) => n()
       : rateLimit({ windowMs, limit, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: { code: 'rate_limited', message: 'Too many requests. Please slow down.' } } });
   return {
@@ -110,7 +110,7 @@ function adminRouter(deps: Deps) {
 }
 
 function rateLimitGlobal(config: Config): RequestHandler {
-  if (config.isTest) return (_q, _s, n) => n();
+  if (config.rateLimitOff) return (_q, _s, n) => n();
   return rateLimit({ windowMs: 15 * 60_000, limit: 1200, standardHeaders: 'draft-7', legacyHeaders: false, skip: (req) => req.path.startsWith('/api/v1/webhooks') });
 }
 

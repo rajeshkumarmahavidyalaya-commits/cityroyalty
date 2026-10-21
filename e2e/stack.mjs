@@ -31,7 +31,7 @@ export async function up() {
   media = mkdtempSync(path.join(tmpdir(), 'cr-e2e-media-'));
   const env = {
     ...process.env, NODE_ENV: 'development', MONGODB_URI: mongod.getUri('cityroyalty_e2e'), JWT_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', STORAGE_LOCAL_DIR: media, PUBLIC_MEDIA_URL: '/media',
-    PAYMENT_MOCK_ENABLED: 'true', MOCK_WEBHOOK_SECRET: 'e2e-webhook', PUBLIC_WEB_URL: `http://localhost:${PORTS.web}`, PORT: String(PORTS.api), LOG_LEVEL: 'warn',
+    PAYMENT_MOCK_ENABLED: 'true', RATE_LIMIT_DISABLED: 'true', MOCK_WEBHOOK_SECRET: 'e2e-webhook', PUBLIC_WEB_URL: `http://localhost:${PORTS.web}`, PORT: String(PORTS.api), LOG_LEVEL: 'warn',
     API_URL: `http://localhost:${PORTS.api}`, NEXT_DIST_DIR: '.next-e2e', NEXT_PUBLIC_SITE_URL: `http://localhost:${PORTS.web}`, NEXT_TELEMETRY_DISABLED: '1',
   };
   writeFileSync(path.join(media, '.env.json'), JSON.stringify({ mongo: env.MONGODB_URI }));
