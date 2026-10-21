@@ -27,7 +27,7 @@ test.describe('admin', () => {
     await page.getByLabel('Option names (comma separated)').fill('Color');
     await page.getByLabel('Variant SKU').fill('E2E-1-TAN');
     await page.getByLabel('Color', { exact: true }).fill('Tan');
-    await page.getByLabel('Price in rupees').fill('4999');
+    await page.getByLabel('Price in rupees', { exact: true }).fill('4999');
     await page.getByRole('checkbox', { name: 'Leather Bags' }).check();
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(page).toHaveURL(/\/products\/[a-f0-9]{24}$/);

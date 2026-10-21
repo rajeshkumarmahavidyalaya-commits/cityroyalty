@@ -198,7 +198,7 @@ function Images({ product: p, onUpload, onChange, busy, setMsg }: { product: Pro
         ))}
         {p.images.length === 0 && <li className="col-span-full text-sm text-muted">No images yet.</li>}
       </ul>
-      <form className="grid gap-3 border-t border-line pt-4 md:grid-cols-[1fr_8rem_8rem_2fr_auto]" onSubmit={async (e) => { e.preventDefault(); if (!file) return; await onUpload(file, slot, kind, alt || p.title); setFile(null); setAlt(''); (e.target as HTMLFormElement).reset(); }}>
+      <form className="grid gap-3 border-t border-line pt-4 md:grid-cols-[1fr_8rem_8rem_2fr_auto]" onSubmit={async (e) => { e.preventDefault(); if (!file) return; const f = file; const a = alt || p.title; setFile(null); setAlt(''); (e.target as HTMLFormElement).reset(); await onUpload(f, slot, kind, a); }}>
         <div><label className="label" htmlFor="file">Image file (JPEG, PNG, WebP, AVIF · min 200px · max 15 MB)</label><input id="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="field" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
         <div><label className="label" htmlFor="slot">Slot</label><select id="slot" className="field" value={slot} onChange={(e) => setSlot(e.target.value)}>{IMAGE_SLOTS.map((s) => <option key={s}>{s}</option>)}</select></div>
         <div><label className="label" htmlFor="kind">Kind</label><select id="kind" className="field" value={kind} onChange={(e) => setKind(e.target.value)}><option>photo</option><option>concept</option></select></div>
