@@ -14,3 +14,4 @@ playwright-report/
 *.tsbuildinfo
 .data/
 .cache/
+.next-e2e/
