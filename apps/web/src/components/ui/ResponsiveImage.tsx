@@ -28,7 +28,6 @@ export function ResponsiveImage({ image, sizes, className = '', imgClassName = '
       <picture>
         {image.avif.length > 0 && <source type="image/avif" srcSet={srcset(image.avif)} sizes={sizes} />}
         <source type="image/webp" srcSet={srcset(image.webp)} sizes={sizes} />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image.src}
           alt={alt ?? image.alt}

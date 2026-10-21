@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { addressSchema, type AddressDTO, type OrderDTO, type ProductCardDTO } from '@cityroyalty/shared';
 import { ApiError, call } from '@/lib/client-api';
@@ -160,6 +161,7 @@ export function WishlistPage() {
 }
 
 export function Profile() {
+  const router = useRouter();
   const { user, refresh, logout } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -183,7 +185,7 @@ export function Profile() {
         <h2 id="priv" className="text-2xl">Privacy</h2>
         <p className="mt-2 text-sm text-muted">You can ask us to delete your account and personal data. Order records may be kept where the law requires it.</p>
         {confirm ? (
-          <div className="mt-4 space-x-3"><button className="btn btn-primary" onClick={async () => { await call('/me/delete-request', { body: {} }); await logout(); location.assign('/'); }}>Yes, request deletion</button><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Cancel</button></div>
+          <div className="mt-4 space-x-3"><button className="btn btn-primary" onClick={async () => { await call('/me/delete-request', { body: {} }); await logout(); router.push('/'); }}>Yes, request deletion</button><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Cancel</button></div>
         ) : <button className="btn btn-ghost mt-4" onClick={() => setConfirm(true)}>Request account deletion</button>}
       </section>
     </div>

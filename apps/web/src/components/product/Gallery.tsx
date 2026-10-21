@@ -11,19 +11,18 @@ export function Gallery({ images, title, activeColour }: { images: ImageDTO[]; t
   const [zoom, setZoom] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
-  // jump to the first image tagged with the selected colour
-  useEffect(() => {
-    if (!activeColour) return;
-    const idx = images.findIndex((im) => im.colour?.toLowerCase() === activeColour.toLowerCase());
-    if (idx >= 0) go(idx);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeColour]);
-
   const go = useCallback((n: number) => {
     setI(n);
     const el = scroller.current;
     if (el) el.scrollTo({ left: n * el.clientWidth, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, []);
+
+  // jump to the first image tagged with the selected colour
+  useEffect(() => {
+    if (!activeColour) return;
+    const idx = images.findIndex((im) => im.colour?.toLowerCase() === activeColour.toLowerCase());
+    if (idx >= 0) go(idx);
+  }, [activeColour, images, go]);
 
   if (!images.length) {
     return <div className="grid aspect-[4/5] place-items-center bg-line text-sm text-muted">Product photography is being prepared.</div>;

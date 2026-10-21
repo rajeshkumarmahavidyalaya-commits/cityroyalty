@@ -5,6 +5,7 @@ const API_URL = (process.env.API_URL ?? 'http://localhost:4000').replace(/\/$/, 
 
 const config: NextConfig = {
   poweredByHeader: false,
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   reactStrictMode: true,
   transpilePackages: ['@cityroyalty/shared'],
   turbopack: { root: path.join(__dirname, '../..') },

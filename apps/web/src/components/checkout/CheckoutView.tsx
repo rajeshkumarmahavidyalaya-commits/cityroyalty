@@ -34,7 +34,7 @@ export function CheckoutView({ settings }: { settings: PublicSettingsDTO | null 
   const { user } = useAuth();
   const cart = useCart();
   const { priced, lines, clear } = cart;
-  const providers = (settings?.paymentProviders ?? []) as PaymentProvider[];
+  const providers = useMemo(() => (settings?.paymentProviders ?? []) as PaymentProvider[], [settings]);
   const [email, setEmail] = useState('');
   const [addr, setAddr] = useState(blank);
   const [provider, setProvider] = useState<PaymentProvider | ''>('');

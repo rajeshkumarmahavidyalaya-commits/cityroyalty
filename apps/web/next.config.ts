@@ -35,6 +35,7 @@ const securityHeaders = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   reactStrictMode: true,
   transpilePackages: ['@cityroyalty/shared'],
   turbopack: { root: path.join(__dirname, '../..') },
