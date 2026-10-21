@@ -25,7 +25,7 @@ export function toOrderDTO(o: OrderHydrated | (Record<string, any> & { _id: unkn
     status: x.status,
     paymentStatus: x.paymentStatus,
     provider: x.provider,
-    lines: x.lines.map((l: any) => ({ title: l.title, sku: l.sku, optionsLabel: l.optionsLabel ?? '', qty: l.qty, unitPrice: l.unitPrice, lineTotal: l.lineTotal, image: l.image })),
+    lines: x.lines.map((l: any) => ({ variantId: String(l.variantId), title: l.title, sku: l.sku, optionsLabel: l.optionsLabel ?? '', qty: l.qty, unitPrice: l.unitPrice, lineTotal: l.lineTotal, image: l.image })),
     subtotal: x.subtotal,
     discountTotal: x.discountTotal ?? 0,
     discountCode: x.discountCode ?? undefined,

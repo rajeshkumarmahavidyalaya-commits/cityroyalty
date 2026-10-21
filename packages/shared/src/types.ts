@@ -201,6 +201,7 @@ export interface PricedCartDTO {
 }
 
 export interface OrderLineDTO {
+  variantId: string;
   title: string;
   sku: string;
   optionsLabel: string;

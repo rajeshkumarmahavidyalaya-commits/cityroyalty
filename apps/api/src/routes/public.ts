@@ -56,14 +56,19 @@ export function publicRoutes({ config, adapters, orders, rate }: Deps) {
     const cols = await Collection.find({ active: true }).sort({ position: 1, title: 1 }).lean();
     const counts = await Product.aggregate([{ $match: { status: 'published' } }, { $unwind: '$collections' }, { $group: { _id: '$collections', n: { $sum: 1 } } }]);
     const n = new Map<string, number>(counts.map((c) => [c._id as string, c.n as number]));
-    const own = (slug: string, parent: string | null) => (n.get(slug) ?? 0);
+    const own = (slug: string) => n.get(slug) ?? 0;
+    const treeCount = async (slug: string) => {
+      const kids = cols.filter((x) => x.parent === slug).map((x) => x.slug);
+      return kids.length ? Product.countDocuments({ status: 'published', collections: { $in: [slug, ...kids] } }) : own(slug);
+    };
+    const totals = new Map<string, number>(await Promise.all(cols.map(async (c) => [c.slug, await treeCount(c.slug)] as const)));
     const out: CollectionDTO[] = cols
       .map((c) => ({
         id: String(c._id), slug: c.slug, title: c.title, description: c.description, parent: c.parent ?? null, heroImage: c.heroImage ?? null,
-        count: own(c.slug, c.parent ?? null), seo: { title: c.seo?.title ?? undefined, description: c.seo?.description ?? undefined },
+        count: totals.get(c.slug) ?? 0, seo: { title: c.seo?.title ?? undefined, description: c.seo?.description ?? undefined },
       }))
       // never expose a category with no confirmed (published) products
-      .filter((c) => c.count > 0 || cols.some((x) => x.parent === c.slug && (n.get(x.slug) ?? 0) > 0));
+      .filter((c) => c.count > 0);
     res.json({ items: out });
   }));
 

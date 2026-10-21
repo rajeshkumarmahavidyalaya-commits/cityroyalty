@@ -25,17 +25,19 @@ export async function processImage(input: Buffer, storage: Storage): Promise<Pro
   const w0 = meta.width;
   const widths = [...new Set([...WIDTHS.filter((w) => w < w0), Math.min(w0, WIDTHS[WIDTHS.length - 1]!)])].sort((a, b) => a - b);
 
-  const avif: ProcessedImage['avif'] = [];
-  const webp: ProcessedImage['webp'] = [];
-  for (const w of widths) {
-    const resized = () => base.clone().resize({ width: w, withoutEnlargement: true });
-    const [a, p] = await Promise.all([resized().avif({ quality: 56, effort: 4 }).toBuffer(), resized().webp({ quality: 80 }).toBuffer()]);
-    const ak = `images/${hash}/${w}.avif`;
-    const pk = `images/${hash}/${w}.webp`;
-    await Promise.all([storage.put(ak, a, 'image/avif'), storage.put(pk, p, 'image/webp')]);
-    avif.push({ w, url: storage.url(ak) });
-    webp.push({ w, url: storage.url(pk) });
-  }
+  // encode the whole ladder in parallel (sharp runs on the libuv pool)
+  const encoded = await Promise.all(
+    widths.map(async (w) => {
+      const resized = () => base.clone().resize({ width: w, withoutEnlargement: true });
+      const [a, p] = await Promise.all([resized().avif({ quality: 56, effort: 3 }).toBuffer(), resized().webp({ quality: 80 }).toBuffer()]);
+      const ak = `images/${hash}/${w}.avif`;
+      const pk = `images/${hash}/${w}.webp`;
+      await Promise.all([storage.put(ak, a, 'image/avif'), storage.put(pk, p, 'image/webp')]);
+      return { w, avif: { w, url: storage.url(ak) }, webp: { w, url: storage.url(pk) } };
+    }),
+  );
+  const avif: ProcessedImage['avif'] = encoded.map((e) => e.avif);
+  const webp: ProcessedImage['webp'] = encoded.map((e) => e.webp);
   const blurBuf = await base.clone().resize({ width: 16 }).webp({ quality: 40 }).toBuffer();
   const largest = widths[widths.length - 1]!;
   const height = Math.round((meta.height * largest) / w0);
