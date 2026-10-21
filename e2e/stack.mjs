@@ -36,12 +36,12 @@ export async function up() {
   };
   writeFileSync(path.join(media, '.env.json'), JSON.stringify({ mongo: env.MONGODB_URI }));
   await run('npx', ['tsx', 'apps/api/scripts/seed-e2e.ts'], { env });
-  children.push(spawn('npx', ['tsx', 'apps/api/src/server.ts'], { cwd: root, env, stdio: 'inherit' }));
+  children.push(spawn('npx', ['tsx', 'apps/api/src/server.ts'], { cwd: root, env, stdio: 'inherit', detached: true }));
   await waitFor(`http://localhost:${PORTS.api}/health`, 'API');
   const nextEnv = { ...env, NODE_ENV: 'production' }; // Next must build/run as production
   for (const app of ['web', 'admin']) {
     if (!existsSync(path.join(root, `apps/${app}/.next-e2e/BUILD_ID`)) || process.env.E2E_REBUILD) await run('npx', ['next', 'build'], { cwd: path.join(root, `apps/${app}`), env: nextEnv });
-    children.push(spawn('npx', ['next', 'start', '-p', String(PORTS[app])], { cwd: path.join(root, `apps/${app}`), env: nextEnv, stdio: 'inherit' }));
+    children.push(spawn('npx', ['next', 'start', '-p', String(PORTS[app])], { cwd: path.join(root, `apps/${app}`), env: nextEnv, stdio: 'inherit', detached: true }));
   }
   await waitFor(`http://localhost:${PORTS.web}/`, 'web');
   await waitFor(`http://localhost:${PORTS.admin}/login`, 'admin');
@@ -49,7 +49,10 @@ export async function up() {
 }
 
 export async function down() {
-  for (const c of children) c.kill('SIGTERM');
+  // npx spawns grandchildren: signal the whole process group so no server outlives the run
+  for (const c of children) {
+    try { process.kill(-c.pid, 'SIGTERM'); } catch { /* already gone */ }
+  }
   await new Promise((r) => setTimeout(r, 500));
   await mongod?.stop();
   if (media) rmSync(media, { recursive: true, force: true });
