@@ -100,3 +100,10 @@ describe('public catalogue', () => {
     await request(t.app).post('/api/v1/newsletter').send({ email: 'bad' }).expect(400);
   });
 });
+
+describe('media', () => {
+  it('returns 404 (not 500) for a missing media file', async () => {
+    const res = await request(t.app).get('/media/images/nope/320.avif');
+    expect(res.status).toBe(404);
+  });
+});

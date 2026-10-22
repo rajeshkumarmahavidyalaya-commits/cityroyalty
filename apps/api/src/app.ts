@@ -124,6 +124,9 @@ function errorHandler(config: Config): ErrorRequestHandler {
     }
     if (err?.type === 'entity.parse.failed') return void res.status(400).json({ error: { code: 'bad_json', message: 'Malformed JSON' } });
     if (err?.type === 'entity.too.large' || err?.code === 'LIMIT_FILE_SIZE') return void res.status(413).json({ error: { code: 'too_large', message: 'That upload is too large' } });
+    // errors raised by middleware such as express.static (missing media → 404) carry their own 4xx status
+    const status = Number(err?.status ?? err?.statusCode);
+    if (status >= 400 && status < 500) return void res.status(status).json({ error: { code: status === 404 ? 'not_found' : 'bad_request', message: status === 404 ? 'Not found' : 'Bad request' } });
     if (err?.code === 11000) return void res.status(409).json({ error: { code: 'duplicate', message: 'That value already exists' } });
     req.log?.error({ err }, 'unhandled error');
     res.status(500).json({ error: { code: 'internal', message: config.isProd ? 'Something went wrong' : String(err?.message ?? err) } });
