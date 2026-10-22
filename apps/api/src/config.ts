@@ -12,6 +12,12 @@ const schema = z.object({
   /** Postgres (Supabase). Use the transaction pooler (port 6543) for serverless hosts. */
   DATABASE_URL: z.string().default('postgres://postgres:postgres@127.0.0.1:54329/cityroyalty'),
   DB_POOL_MAX: z.coerce.number().default(10),
+  /** Alternative to DATABASE_URL: parts, so only the password has to be a secret. Used when DB_PASSWORD is set and DATABASE_URL is not. */
+  DB_HOST: z.string().optional(),
+  DB_PORT: z.coerce.number().default(6543),
+  DB_USER: z.string().optional(),
+  DB_NAME: z.string().default('postgres'),
+  DB_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   PUBLIC_WEB_URL: z.string().default('http://localhost:3000'),
@@ -48,7 +54,12 @@ const schema = z.object({
 export type Config = ReturnType<typeof loadConfig>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
-  const raw = schema.parse(Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v === '' ? undefined : v])));
+  const input = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v === '' ? undefined : v]));
+  const raw = schema.parse(input);
+  if (!input.DATABASE_URL && raw.DB_PASSWORD) {
+    if (!raw.DB_HOST || !raw.DB_USER) throw new Error('DB_HOST and DB_USER are required with DB_PASSWORD');
+    raw.DATABASE_URL = `postgres://${encodeURIComponent(raw.DB_USER)}:${encodeURIComponent(raw.DB_PASSWORD)}@${raw.DB_HOST}:${raw.DB_PORT}/${raw.DB_NAME}`;
+  }
   const prod = raw.NODE_ENV === 'production';
   if (prod && (!raw.JWT_SECRET || raw.JWT_SECRET.length < 32)) throw new Error('JWT_SECRET (32+ chars) is required in production');
   if (prod && raw.PAYMENT_MOCK_ENABLED) throw new Error('PAYMENT_MOCK_ENABLED must not be true in production');

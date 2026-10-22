@@ -59,3 +59,11 @@ describe('Stripe adapter', () => {
     expect(() => a.parseWebhook(Buffer.from(body), { 'stripe-signature': `t=${t},v1=deadbeef` })).toThrow();
   });
 });
+
+describe('config', () => {
+  it('builds DATABASE_URL from parts so only the password is secret', () => {
+    const c = loadConfig({ NODE_ENV: 'test', DB_HOST: 'pool.test', DB_USER: 'cr_api.ref', DB_PASSWORD: 'p@ss/word' } as NodeJS.ProcessEnv);
+    expect(c.DATABASE_URL).toBe('postgres://cr_api.ref:p%40ss%2Fword@pool.test:6543/postgres');
+    expect(loadConfig({ NODE_ENV: 'test', DATABASE_URL: 'postgres://x', DB_PASSWORD: 'y', DB_HOST: 'h', DB_USER: 'u' } as NodeJS.ProcessEnv).DATABASE_URL).toBe('postgres://x');
+  });
+});
