@@ -8,7 +8,7 @@ All checks below were run locally in this repository. They are the evidence for 
 | --- | --- | --- |
 | Type check (shared, api, web, admin) | `npm run typecheck` | ✅ 0 errors |
 | Lint (web, admin — Next, React hooks, a11y rules) | `npm run lint` | ✅ 0 errors, 0 warnings |
-| Unit / integration (API on in-memory MongoDB) | `npm test` | ✅ 61 API + 8 shared + 3 web = **72 passed** |
+| Unit / integration (API on embedded Postgres) | `npm test` | ✅ 61 API + 8 shared + 3 web = **72 passed** |
 | End-to-end + accessibility (Playwright, desktop 1440×900 and Pixel 7) | `npm run test:e2e` | ✅ **46 passed** |
 
 ### What the API suite proves

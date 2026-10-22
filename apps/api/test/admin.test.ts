@@ -1,8 +1,10 @@
 import sharp from 'sharp';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AuditLog, Order, Product } from '../src/models';
-import { checkoutBody, makeCollection, makeProduct, sessionFor, startTestApp } from './helpers';
+import { eq } from 'drizzle-orm';
+import { auditLogs } from '../src/db/schema';
+import { loadProduct } from '../src/services/products';
+import { checkoutBody, count, makeCollection, makeProduct, orderById, orderByNumber, sessionFor, startTestApp, stockOf } from './helpers';
 
 let t: Awaited<ReturnType<typeof startTestApp>>;
 beforeAll(async () => (t = await startTestApp()));
@@ -47,7 +49,7 @@ describe('admin product workflow', () => {
     expect(real.status).toBe(201);
     const img = real.body.images.find((i: { kind: string }) => i.kind === 'photo');
     expect(img.width).toBeLessThanOrEqual(900);
-    const doc = await Product.findById(p.id);
+    const doc = await loadProduct(p.id);
     const photo = doc!.images.find((i) => i.kind === 'photo')!;
     expect(photo.avif.length).toBeGreaterThanOrEqual(2);
     expect(photo.webp.every((s) => s.url!.startsWith('/media/images/'))).toBe(true);
@@ -66,7 +68,7 @@ describe('admin product workflow', () => {
 
     // removing the last verified photo pulls the product off the storefront
     await mgr.delete(`/api/v1/admin/products/${p.id}/images/${img.id}`);
-    expect((await Product.findById(p.id))!.status).toBe('draft');
+    expect((await loadProduct(p.id))!.status).toBe('draft');
     expect((await request(t.app).get('/api/v1/products/tan-leather-jacket')).status).toBe(404);
   });
 
@@ -74,18 +76,18 @@ describe('admin product workflow', () => {
     await makeCollection();
     const p = await makeProduct({ status: 'draft' });
     const content = await sessionFor(t.app, 'content');
-    expect((await content.post(`/api/v1/admin/products/${p._id}/status`, { status: 'review' })).status).toBe(200);
-    expect((await content.post(`/api/v1/admin/products/${p._id}/status`, { status: 'published' })).status).toBe(400);
+    expect((await content.post(`/api/v1/admin/products/${p.id}/status`, { status: 'review' })).status).toBe(200);
+    expect((await content.post(`/api/v1/admin/products/${p.id}/status`, { status: 'published' })).status).toBe(400);
     const mgr = await sessionFor(t.app, 'manager');
-    expect((await mgr.post(`/api/v1/admin/products/${p._id}/status`, { status: 'published' })).status).toBe(200);
+    expect((await mgr.post(`/api/v1/admin/products/${p.id}/status`, { status: 'published' })).status).toBe(200);
   });
 
   it('rejects non-images and oversized uploads', async () => {
     const mgr = await sessionFor(t.app, 'manager');
     const p = await makeProduct({ status: 'draft' });
-    const bad = await mgr.raw('post', `/api/v1/admin/products/${p._id}/images`).field('slot', 'front').field('alt', 'x').attach('file', Buffer.from('<script>alert(1)</script>'), { filename: 'x.png', contentType: 'image/png' });
+    const bad = await mgr.raw('post', `/api/v1/admin/products/${p.id}/images`).field('slot', 'front').field('alt', 'x').attach('file', Buffer.from('<script>alert(1)</script>'), { filename: 'x.png', contentType: 'image/png' });
     expect(bad.status).toBe(400);
-    const tiny = await mgr.raw('post', `/api/v1/admin/products/${p._id}/images`).field('slot', 'front').field('alt', 'x').attach('file', await png(50, 50), 'tiny.png');
+    const tiny = await mgr.raw('post', `/api/v1/admin/products/${p.id}/images`).field('slot', 'front').field('alt', 'x').attach('file', await png(50, 50), 'tiny.png');
     expect(tiny.status).toBe(400);
   });
 
@@ -93,8 +95,8 @@ describe('admin product workflow', () => {
     await makeCollection();
     const mgr = await sessionFor(t.app, 'manager');
     const p = await makeProduct({ status: 'published' });
-    const full = (await mgr.get(`/api/v1/admin/products/${p._id}`)).body;
-    const res = await mgr.put(`/api/v1/admin/products/${p._id}`, { ...input(), variants: full.variants.map((v: object) => ({ ...v, stock: null })) });
+    const full = (await mgr.get(`/api/v1/admin/products/${p.id}`)).body;
+    const res = await mgr.put(`/api/v1/admin/products/${p.id}`, { ...input(), variants: full.variants.map((v: object) => ({ ...v, stock: null })) });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('draft');
     expect(res.body.blockers.join()).toMatch(/Stock/);
@@ -107,7 +109,7 @@ describe('admin product workflow', () => {
     const admin = await sessionFor(t.app, 'admin');
     const log = (await admin.get('/api/v1/admin/audit')).body.items;
     expect(log[0].action).toBe('product.create');
-    expect(await AuditLog.countDocuments()).toBeGreaterThan(0);
+    expect(await count(auditLogs)).toBeGreaterThan(0);
   });
 });
 
@@ -116,20 +118,20 @@ describe('admin order management', () => {
     const p = await makeProduct({ stock: 5 });
     const res = await request(t.app).post('/api/v1/checkout').send(checkoutBody(p));
     await request(t.app).post('/api/v1/checkout/verify').send({ orderNumber: res.body.order.number, accessToken: res.body.order.accessToken, provider: 'mock', payload: { result: 'success' } });
-    return { p, order: (await Order.findOne({ number: res.body.order.number }))! };
+    return { p, order: (await orderByNumber(res.body.order.number))! };
   }
 
   it('walks paid → shipped → delivered with emails, and blocks invalid jumps', async () => {
     const mgr = await sessionFor(t.app, 'manager');
     const { order } = await paidOrder();
-    expect((await mgr.post(`/api/v1/admin/orders/${order._id}/status`, { status: 'delivered' })).status).toBe(409);
-    const ship = await mgr.post(`/api/v1/admin/orders/${order._id}/shipments`, { carrier: 'Delhivery', trackingNumber: 'DL123456', trackingUrl: 'https://track.test/DL123456' });
+    expect((await mgr.post(`/api/v1/admin/orders/${order.id}/status`, { status: 'delivered' })).status).toBe(409);
+    const ship = await mgr.post(`/api/v1/admin/orders/${order.id}/shipments`, { carrier: 'Delhivery', trackingNumber: 'DL123456', trackingUrl: 'https://track.test/DL123456' });
     expect(ship.status).toBe(201);
-    expect((await Order.findById(order._id))!.status).toBe('shipped');
+    expect((await orderById(order.id))!.status).toBe('shipped');
     expect(t.deps.mailer.outbox.some((m) => m.subject.includes('on its way'))).toBe(true);
-    const delivered = await mgr.post(`/api/v1/admin/orders/${order._id}/status`, { status: 'delivered' });
+    const delivered = await mgr.post(`/api/v1/admin/orders/${order.id}/status`, { status: 'delivered' });
     expect(delivered.status).toBe(200);
-    const detail = (await mgr.get(`/api/v1/admin/orders/${order._id}`)).body;
+    const detail = (await mgr.get(`/api/v1/admin/orders/${order.id}`)).body;
     expect(detail.shipments[0].trackingNumber).toBe('DL123456');
     expect(detail.timeline.map((x: { status: string }) => x.status)).toEqual(expect.arrayContaining(['pending_payment', 'paid', 'shipped', 'delivered']));
   });
@@ -137,16 +139,16 @@ describe('admin order management', () => {
   it('cancelling a paid order restocks exactly once; refunds are capped at the amount paid', async () => {
     const mgr = await sessionFor(t.app, 'manager');
     const { p, order } = await paidOrder();
-    expect((await Product.findById(p._id))!.variants[0]!.stock).toBe(4);
-    const over = await mgr.post(`/api/v1/admin/orders/${order._id}/refund`, { amount: order.total + 1, reason: 'too much' });
+    expect((await stockOf(p.id))).toBe(4);
+    const over = await mgr.post(`/api/v1/admin/orders/${order.id}/refund`, { amount: order.total + 1, reason: 'too much' });
     expect(over.status).toBe(400);
-    expect((await mgr.post(`/api/v1/admin/orders/${order._id}/refund`, { amount: order.total, reason: 'customer request' })).status).toBe(200);
-    const after = (await Order.findById(order._id))!;
+    expect((await mgr.post(`/api/v1/admin/orders/${order.id}/refund`, { amount: order.total, reason: 'customer request' })).status).toBe(200);
+    const after = (await orderById(order.id))!;
     expect(after.status).toBe('refunded');
     expect(after.paymentStatus).toBe('refunded');
-    expect((await Product.findById(p._id))!.variants[0]!.stock).toBe(5); // restocked once
-    expect((await mgr.post(`/api/v1/admin/orders/${order._id}/status`, { status: 'cancelled' })).status).toBe(409);
-    expect((await Product.findById(p._id))!.variants[0]!.stock).toBe(5);
+    expect((await stockOf(p.id))).toBe(5); // restocked once
+    expect((await mgr.post(`/api/v1/admin/orders/${order.id}/status`, { status: 'cancelled' })).status).toBe(409);
+    expect((await stockOf(p.id))).toBe(5);
   });
 
   it('inventory adjustments update availability and are audited', async () => {
@@ -154,10 +156,10 @@ describe('admin order management', () => {
     const mgr = await sessionFor(t.app, 'manager');
     const p = await makeProduct({ stock: 0, sizes: ['M-44'] });
     expect((await request(t.app).get(`/api/v1/products/${p.slug}`)).body.product.available).toBe(false);
-    const adj = await mgr.post('/api/v1/admin/inventory/adjust', { variantId: String(p.variants[0]!._id), stock: 7, reason: 'stock count' });
+    const adj = await mgr.post('/api/v1/admin/inventory/adjust', { variantId: p.variants[0]!.id, stock: 7, reason: 'stock count' });
     expect(adj.status).toBe(200);
     expect((await request(t.app).get(`/api/v1/products/${p.slug}`)).body.product.available).toBe(true);
-    expect(await AuditLog.countDocuments({ action: 'inventory.adjust' })).toBe(1);
+    expect(await count(auditLogs, eq(auditLogs.action, 'inventory.adjust'))).toBe(1);
   });
 
   it('customer returns flow and privacy erasure', async () => {
@@ -167,12 +169,12 @@ describe('admin order management', () => {
     const p = await makeProduct({ stock: 5 });
     const res = await cust.post('/api/v1/checkout', checkoutBody(p, { email: 'buyer@t.test' }));
     await request(t.app).post('/api/v1/checkout/verify').send({ orderNumber: res.body.order.number, accessToken: res.body.order.accessToken, provider: 'mock', payload: { result: 'success' } });
-    const order = (await Order.findOne({ number: res.body.order.number }))!;
-    const early = await cust.post(`/api/v1/me/orders/${order.number}/return`, { lines: [{ variantId: String(p.variants[0]!._id), qty: 1 }], reason: 'Does not fit' });
+    const order = (await orderByNumber(res.body.order.number))!;
+    const early = await cust.post(`/api/v1/me/orders/${order.number}/return`, { lines: [{ variantId: p.variants[0]!.id, qty: 1 }], reason: 'Does not fit' });
     expect(early.status).toBe(409); // not shipped yet
-    const sh = await mgr.post(`/api/v1/admin/orders/${order._id}/shipments`, { carrier: 'Delhivery', trackingNumber: 'T1234' });
+    const sh = await mgr.post(`/api/v1/admin/orders/${order.id}/shipments`, { carrier: 'Delhivery', trackingNumber: 'T1234' });
     expect(sh.status, JSON.stringify(sh.body)).toBe(201);
-    const ret = await cust.post(`/api/v1/me/orders/${order.number}/return`, { lines: [{ variantId: String(p.variants[0]!._id), qty: 1 }], reason: 'Does not fit' });
+    const ret = await cust.post(`/api/v1/me/orders/${order.number}/return`, { lines: [{ variantId: p.variants[0]!.id, qty: 1 }], reason: 'Does not fit' });
     expect(ret.body).toMatchObject({ status: 'requested' });
     const list = (await mgr.get('/api/v1/admin/returns')).body.items;
     expect(list[0].status).toBe('requested');

@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import { and, eq } from 'drizzle-orm';
 import { PAYMENT_PROVIDERS, type PaymentProvider } from '@cityroyalty/shared';
 import type { Deps } from '../app';
+import { db } from '../db';
+import { paymentEvents, payments } from '../db/schema';
 import { HttpError } from '../lib/errors';
 import { wrap } from '../lib/http';
 import { logger } from '../logger';
-import { Payment, PaymentEvent } from '../models';
 import { getAdapter } from '../payments';
 
 /**
@@ -17,30 +19,20 @@ export function webhookRoutes({ adapters, orders }: Deps) {
   r.post('/:provider', wrap(async (req, res) => {
     const provider = String(req.params.provider) as PaymentProvider;
     if (!PAYMENT_PROVIDERS.includes(provider) || provider === 'cod') throw new HttpError(404, 'not_found', 'Unknown provider');
-    const adapter = getAdapter(adapters, provider);
-    const raw = req.body as Buffer;
-    const ev = adapter.parseWebhook(raw, req.headers); // throws 400 on bad signature
+    const ev = getAdapter(adapters, provider).parseWebhook(req.body as Buffer, req.headers); // throws 400 on bad signature
 
-    const ledger = await PaymentEvent.findOneAndUpdate(
-      { provider, eventId: ev.eventId },
-      { $setOnInsert: { provider, eventId: ev.eventId, type: ev.type, processed: false } },
-      { upsert: true, returnDocument: 'before' },
-    );
-    if (ledger?.processed) return res.json({ ok: true, duplicate: true });
+    await db().insert(paymentEvents).values({ provider, eventId: ev.eventId, type: ev.type }).onConflictDoNothing();
+    const [ledger] = await db().select().from(paymentEvents).where(and(eq(paymentEvents.provider, provider), eq(paymentEvents.eventId, ev.eventId)));
+    if (ledger?.processed) return void res.json({ ok: true, duplicate: true });
 
     let result = 'ignored';
     if (ev.outcome !== 'ignored' && ev.providerOrderId) {
-      const payment = await Payment.findOne({ provider, providerOrderId: ev.providerOrderId });
+      const [payment] = await db().select().from(payments).where(and(eq(payments.provider, provider), eq(payments.providerOrderId, ev.providerOrderId)));
       if (!payment) result = 'unknown_payment';
-      else if (ev.outcome === 'paid') {
-        const o = await orders.markPaid(payment.orderId, { providerPaymentId: ev.providerPaymentId, amount: ev.amount, via: `${provider}-webhook` });
-        result = o.changed ? 'paid' : 'noop';
-      } else {
-        const o = await orders.markFailed(payment.orderId, ev.reason);
-        result = o.changed ? 'failed' : 'noop';
-      }
+      else if (ev.outcome === 'paid') result = (await orders.markPaid(payment.orderId, { providerPaymentId: ev.providerPaymentId, amount: ev.amount, via: `${provider}-webhook` })).changed ? 'paid' : 'noop';
+      else result = (await orders.markFailed(payment.orderId, ev.reason)).changed ? 'failed' : 'noop';
     }
-    await PaymentEvent.updateOne({ provider, eventId: ev.eventId }, { $set: { processed: true, result } });
+    await db().update(paymentEvents).set({ processed: true, result }).where(and(eq(paymentEvents.provider, provider), eq(paymentEvents.eventId, ev.eventId)));
     logger.info({ provider, event: ev.eventId, type: ev.type, result }, 'webhook processed');
     res.json({ ok: true, result });
   }));

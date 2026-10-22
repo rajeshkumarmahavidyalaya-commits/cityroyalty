@@ -6,15 +6,15 @@
 
 | Env | Purpose | Storefront | Admin | API | DB |
 | --- | --- | --- | --- | --- | --- |
-| local | development | `npm run dev:web` :3000 | `npm run dev:admin` :3001 | `npm run dev:api` :4000 | `npm run dev:db` (local MongoDB) |
-| staging | verification before launch | `staging.cityroyalty.in` (Vercel project, *Preview/Production of staging branch*) | `admin-staging.cityroyalty.in` | `api-staging.cityroyalty.in` | separate Atlas cluster/database |
-| production | live | `cityroyalty.in` | `admin.cityroyalty.in` | `api.cityroyalty.in` | Atlas M10+ (backups on) |
+| local | development | `npm run dev:web` :3000 | `npm run dev:admin` :3001 | `npm run dev:api` :4000 | `npm run dev:db` (local Postgres) |
+| staging | verification before launch | `staging.cityroyalty.in` (Vercel project, *Preview/Production of staging branch*) | `admin-staging.cityroyalty.in` | `api-staging.cityroyalty.in` | separate Supabase project |
+| production | live | `cityroyalty.in` | `admin.cityroyalty.in` | `api.cityroyalty.in` | Supabase Pro (PITR backups on) |
 
 The production WordPress site keeps serving `cityroyalty.in` until cut-over (see `05-migration-plan.md`).
 
 ## 1. Provision
 
-1. **MongoDB Atlas**: create a cluster per environment, a database user with `readWrite` on `cityroyalty`, IP allow-list for the API host, and enable continuous backups on production. Copy the SRV URI into `MONGODB_URI`.
+1. **Supabase** (one project per environment): apply `apps/api/drizzle/*.sql` in order (or boot the API once with `RUN_MIGRATIONS=true`). Create a dedicated login role for the API (not `postgres`) with `USAGE` on schema `cr`, table/sequence privileges, and RLS policies for that role only — `cr` is never exposed through PostgREST. Set `DATABASE_URL` to the **transaction pooler** (`…pooler.supabase.com:6543`, user `<role>.<project-ref>`) and `DB_POOL_MAX=1` on serverless. Enable PITR backups on production.
 2. **Object storage + CDN** for images: an S3-compatible bucket (AWS S3 / Cloudflare R2) with public-read for `images/*` behind a CDN domain (`https://cdn.cityroyalty.in`). Set `STORAGE_DRIVER=s3`, `S3_*`, and `PUBLIC_MEDIA_URL=https://cdn.cityroyalty.in`. Objects are content-hashed and uploaded with `Cache-Control: immutable`.
 3. **API host** (Render / Railway / Fly.io / a VPS): Node ≥ 20. Use the supplied `Dockerfile` (`apps/api/Dockerfile`) or `npm ci && npm run build -w @cityroyalty/api && npm start -w @cityroyalty/api`. Health check: `GET /health`. Set `TRUST_PROXY=1`.
 4. **Vercel** — two projects from this repo:
@@ -45,7 +45,7 @@ npm run create-admin -w @cityroyalty/api     # ADMIN_EMAIL / ADMIN_NAME / ADMIN_
 npm run import:woo -w @cityroyalty/api -- --images   # products, collections, journal, policy pages + optimised images
 ```
 
-Never run `seed --demo` against anything customer-facing. Indexes are created automatically on first boot (`autoIndex`); for very large catalogues create them in a maintenance window.
+Never run `seed --demo` against anything customer-facing. Indexes are part of the migrations.
 
 ## 4. Staging verification (all must pass)
 
@@ -66,12 +66,12 @@ Never run `seed --demo` against anything customer-facing. Indexes are created au
 2. Put WooCommerce in maintenance mode; export orders/customers (CSV) if you want them imported.
 3. Run a final import delta if the live catalogue changed (the importer is idempotent and keeps admin edits).
 4. Point DNS to Vercel / API. Verify: home, a product, add to bag, **a real low-value live payment and refund**, webhook delivery, sitemap, `https://cityroyalty.in/sitemap.xml` submitted in Google Search Console.
-5. Monitor: Vercel logs, API logs (JSON, request-id), Atlas metrics, Razorpay dashboard, 404 report in Search Console.
+5. Monitor: Vercel logs, API logs (JSON, request-id), Supabase database metrics, Razorpay dashboard, 404 report in Search Console.
 
 **Rollback**: repoint DNS to the old host (untouched for 14 days). No data on the old site was modified. Orders taken on the new platform during the window are exported from Admin → Orders and re-keyed.
 
 ## 6. Operations
 
-* **Backups**: Atlas continuous backup; test a restore quarterly. Media bucket versioning on.
+* **Backups**: Supabase PITR; test a restore quarterly. Media bucket versioning on.
 * **Updating the catalogue**: all through Admin. Publishing triggers revalidation so the storefront updates within seconds.
 * **Security**: rotate `JWT_SECRET` (logs everyone out) and provider secrets on staff changes; review Admin → Audit log; staff accounts use unique strong passwords (MFA is a known gap — see README "Known limitations").

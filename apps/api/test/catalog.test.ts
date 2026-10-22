@@ -1,7 +1,9 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Product } from '../src/models';
-import { makeCollection, makeProduct, photo, startTestApp } from './helpers';
+import { products, subscribers, variants } from '../src/db/schema';
+import { db } from '../src/db';
+import { loadProduct, refreshProduct } from '../src/services/products';
+import { count, makeCollection, makeProduct, photo, startTestApp } from './helpers';
 
 let t: Awaited<ReturnType<typeof startTestApp>>;
 beforeAll(async () => (t = await startTestApp()));
@@ -81,7 +83,10 @@ describe('public catalogue', () => {
     expect(p.priceFrom).toBe(799900);
     expect(p.compareAtFrom).toBe(1599900);
     expect(p.sizes).toEqual(['M-44']);
-    const q = await Product.create({ title: 'x', slug: 'x', sku: 'x', collections: [], variants: [{ sku: 'x', options: {}, price: 0, stock: null }], images: [] });
+    const [row] = await db().insert(products).values({ title: 'x', slug: 'x', sku: 'x', collections: [] }).returning();
+    await db().insert(variants).values({ productId: row!.id, sku: 'x', options: {}, price: 0, stock: null });
+    await refreshProduct(row!.id);
+    const q = (await loadProduct(row!.id))!;
     expect(q.blockers.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -96,7 +101,7 @@ describe('public catalogue', () => {
   it('accepts newsletter signups idempotently', async () => {
     await request(t.app).post('/api/v1/newsletter').send({ email: 'N@x.com' }).expect(201);
     await request(t.app).post('/api/v1/newsletter').send({ email: 'n@x.com' }).expect(201);
-    expect(await (await import('../src/models')).Subscriber.countDocuments()).toBe(1);
+    expect(await count(subscribers)).toBe(1);
     await request(t.app).post('/api/v1/newsletter').send({ email: 'bad' }).expect(400);
   });
 });

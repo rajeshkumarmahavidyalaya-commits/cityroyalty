@@ -4,7 +4,9 @@ import jwt from 'jsonwebtoken';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Role } from '@cityroyalty/shared';
 import type { Config } from '../config';
-import { User } from '../models';
+import { eq } from 'drizzle-orm';
+import { db } from '../db';
+import { users } from '../db/schema';
 import { forbidden, unauthorized, HttpError } from './errors';
 
 export const SESSION_COOKIE = 'cr_session';
@@ -53,9 +55,12 @@ export const loadUser: RequestHandler = async (req, _res, next) => {
     const token = req.cookies?.[SESSION_COOKIE];
     if (!token) return next();
     const payload = jwt.verify(token, req.config.jwtSecret, { algorithms: ['HS256'] }) as { sub: string; tv: number };
-    const user = await User.findById(payload.sub).select('name email role tokenVersion deletionRequestedAt').lean();
+    const [user] = await db()
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role, tokenVersion: users.tokenVersion })
+      .from(users)
+      .where(eq(users.id, payload.sub));
     if (user && user.tokenVersion === payload.tv) {
-      req.user = { id: String(user._id), role: user.role as Role, email: user.email, name: user.name };
+      req.user = { id: user.id, role: user.role as Role, email: user.email, name: user.name };
     }
   } catch {
     /* invalid or expired token → treated as anonymous */

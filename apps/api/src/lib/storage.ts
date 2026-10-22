@@ -9,6 +9,21 @@ export interface Storage {
 
 export function createStorage(config: Config): Storage {
   const base = config.PUBLIC_MEDIA_URL.replace(/\/$/, '');
+  if (config.STORAGE_DRIVER === 'supabase') {
+    // Uploads go through the `media-upload` Edge Function (it holds the service key); objects are served from the public bucket.
+    return {
+      async put(key, body, contentType) {
+        const res = await fetch(config.SUPABASE_MEDIA_UPLOAD_URL!, {
+          method: 'POST',
+          headers: { 'x-upload-token': config.SUPABASE_MEDIA_TOKEN!, 'x-object-key': key, 'content-type': contentType },
+          body: new Uint8Array(body),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) throw new Error(`media upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+      },
+      url: (key) => `${base}/${key}`,
+    };
+  }
   if (config.STORAGE_DRIVER === 's3') {
     if (!config.S3_BUCKET || !config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY) throw new Error('S3_* env vars are required for STORAGE_DRIVER=s3');
     let client: import('@aws-sdk/client-s3').S3Client | undefined;

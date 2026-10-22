@@ -19,10 +19,13 @@ export function parse<T>(schema: ZodType<T>, data: unknown): T {
 /** Express 5 exposes req.query as a getter, so validate into a fresh object. */
 export const parseQuery = <T>(schema: ZodType<T>, req: Request) => parse(schema, req.query);
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v);
 export const idParam = (req: Request, name = 'id'): string => {
   const v = req.params[name];
-  if (typeof v !== 'string' || !/^[a-f0-9]{24}$/i.test(v)) throw badRequest('Invalid id', undefined, 'invalid_id');
+  if (!isUuid(v)) throw badRequest('Invalid id', undefined, 'invalid_id');
   return v;
 };
 
-export const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** ILIKE pattern that matches `s` literally anywhere in the column. */
+export const contains = (s: string) => `%${s.replace(/[\\%_]/g, '\\$&')}%`;

@@ -1,15 +1,16 @@
-// Boots an isolated stack for the Playwright suite: in-memory MongoDB, seeded API, and production builds of web + admin.
+// Boots an isolated stack for the Playwright suite: throwaway Postgres, seeded API, and production builds of web + admin.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import EmbeddedPostgres from 'embedded-postgres';
+import postgres from 'postgres';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const PORTS = { api: 4100, web: 3100, admin: 3101 };
+export const PORTS = { api: 4100, web: 3100, admin: 3101, db: 54400 };
 const children = [];
-let mongod, media;
+let pg, pgDir, media;
 
 async function waitFor(url, label, ms = 120000) {
   const end = Date.now() + ms;
@@ -19,7 +20,7 @@ async function waitFor(url, label, ms = 120000) {
   }
   throw new Error(`${label} did not start`);
 }
-// async on purpose: a blocked event loop stops us draining mongod's stdout pipe, which then stalls the database
+// async on purpose: a blocked event loop would stop us draining the children's output pipes
 const run = (cmd, args, opts) =>
   new Promise((resolve, reject) => {
     const c = spawn(cmd, args, { stdio: 'inherit', cwd: root, ...opts });
@@ -27,14 +28,19 @@ const run = (cmd, args, opts) =>
   });
 
 export async function up() {
-  mongod = await MongoMemoryServer.create();
+  pgDir = path.join(tmpdir(), `cr-e2e-pg-${process.pid}`); // initdb creates it (it runs unprivileged, so no 0700 mkdtemp dir)
+  pg = new EmbeddedPostgres({ databaseDir: pgDir, user: 'postgres', password: 'postgres', port: PORTS.db, persistent: false, onLog: () => {}, onError: () => {} });
+  await pg.initialise();
+  await pg.start();
+  const admin = postgres(`postgres://postgres:postgres@127.0.0.1:${PORTS.db}/postgres`, { max: 1, onnotice: () => {} });
+  await admin.unsafe('create database cityroyalty_e2e');
+  await admin.end();
   media = mkdtempSync(path.join(tmpdir(), 'cr-e2e-media-'));
   const env = {
-    ...process.env, NODE_ENV: 'development', MONGODB_URI: mongod.getUri('cityroyalty_e2e'), JWT_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', STORAGE_LOCAL_DIR: media, PUBLIC_MEDIA_URL: '/media',
+    ...process.env, NODE_ENV: 'development', DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${PORTS.db}/cityroyalty_e2e`, JWT_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', STORAGE_LOCAL_DIR: media, PUBLIC_MEDIA_URL: '/media',
     PAYMENT_MOCK_ENABLED: 'true', RATE_LIMIT_DISABLED: 'true', REVALIDATE_SECRET: 'e2e-revalidate-secret', REVALIDATE_URL: `http://localhost:${PORTS.web}/api/revalidate`, MOCK_WEBHOOK_SECRET: 'e2e-webhook', PUBLIC_WEB_URL: `http://localhost:${PORTS.web}`, PORT: String(PORTS.api), LOG_LEVEL: 'warn',
     API_URL: `http://localhost:${PORTS.api}`, NEXT_DIST_DIR: '.next-e2e', NEXT_PUBLIC_SITE_URL: `http://localhost:${PORTS.web}`, NEXT_TELEMETRY_DISABLED: '1', NEXT_PUBLIC_FORCE_3D: '1',
   };
-  writeFileSync(path.join(media, '.env.json'), JSON.stringify({ mongo: env.MONGODB_URI }));
   await run('npx', ['tsx', 'apps/api/scripts/seed-e2e.ts'], { env });
   children.push(spawn('npx', ['tsx', 'apps/api/src/server.ts'], { cwd: root, env, stdio: 'inherit', detached: true }));
   await waitFor(`http://localhost:${PORTS.api}/health`, 'API');
@@ -58,6 +64,7 @@ export async function down() {
     try { process.kill(-c.pid, 'SIGTERM'); } catch { /* already gone */ }
   }
   await new Promise((r) => setTimeout(r, 500));
-  await mongod?.stop();
+  await pg?.stop();
+  if (pgDir) rmSync(pgDir, { recursive: true, force: true });
   if (media) rmSync(media, { recursive: true, force: true });
 }

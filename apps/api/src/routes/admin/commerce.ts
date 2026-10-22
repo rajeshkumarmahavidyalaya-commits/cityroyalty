@@ -1,156 +1,163 @@
 import { Router } from 'express';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
-import {
-  ORDER_STATUSES,
-  discountInputSchema,
-  inventoryAdjustSchema,
-  orderStatusUpdateSchema,
-  refundSchema,
-  returnUpdateSchema,
-  shipmentInputSchema,
-} from '@cityroyalty/shared';
+import { ORDER_STATUSES, discountInputSchema, inventoryAdjustSchema, orderStatusUpdateSchema, refundSchema, returnUpdateSchema, shipmentInputSchema } from '@cityroyalty/shared';
 import type { Deps } from '../../app';
+import { db } from '../../db';
+import { addresses, discounts, orders, payments, products, returns, shipments, subscribers, users, variants } from '../../db/schema';
 import { audit } from '../../lib/audit';
 import { requireRole } from '../../lib/auth';
 import { conflict, notFound } from '../../lib/errors';
-import { escapeRegex, idParam, parse, wrap } from '../../lib/http';
-import { Discount, Order, Payment, Product, ReturnRequest, Shipment, Subscriber, User } from '../../models';
-import { toOrderDTO } from '../../services/orders';
-import { refreshAvailability } from '../../services/inventory';
+import { contains, idParam, parse, wrap } from '../../lib/http';
+import { loadOrder, shipmentsFor, toOrderDTO, withLines } from '../../services/orders';
+import { refreshProduct } from '../../services/products';
 
-export function adminCommerceRoutes({ orders, revalidate }: Deps) {
+const discountDTO = (d: typeof discounts.$inferSelect) => ({ ...d, id: d.id, startsAt: d.startsAt?.toISOString(), endsAt: d.endsAt?.toISOString() });
+const PAID = ['paid', 'processing', 'shipped', 'delivered'];
+
+export function adminCommerceRoutes({ orders: svc, revalidate }: Deps) {
   const r = Router();
   const mgr = requireRole('manager', 'admin');
 
   /* ---------- orders ---------- */
   r.get('/orders', mgr, wrap(async (req, res) => {
     const { status, q, page = '1' } = req.query as Record<string, string | undefined>;
-    const filter: Record<string, unknown> = {};
-    if (status && (ORDER_STATUSES as readonly string[]).includes(status)) filter.status = status;
-    if (q) filter.$or = [{ number: new RegExp(escapeRegex(q), 'i') }, { email: new RegExp(escapeRegex(q), 'i') }, { 'shippingAddress.fullName': new RegExp(escapeRegex(q), 'i') }];
+    const conds: (SQL | undefined)[] = [];
+    if (status && (ORDER_STATUSES as readonly string[]).includes(status)) conds.push(eq(orders.status, status));
+    if (q) conds.push(or(ilike(orders.number, contains(q)), ilike(orders.email, contains(q)), sql`${orders.shippingAddress}->>'fullName' ilike ${contains(q)}`));
+    const where = and(...conds);
     const limit = 30;
     const pg = Math.max(1, Number(page) || 1);
-    const [items, total] = await Promise.all([Order.find(filter).sort({ createdAt: -1 }).skip((pg - 1) * limit).limit(limit), Order.countDocuments(filter)]);
-    res.json({ items: items.map((o) => ({ ...toOrderDTO(o), flags: o.flags })), page: pg, pages: Math.max(1, Math.ceil(total / limit)), total });
+    const [rows, [{ n }]] = (await Promise.all([
+      db().select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(limit).offset((pg - 1) * limit),
+      db().select({ n: sql<number>`count(*)::int` }).from(orders).where(where),
+    ])) as [typeof orders.$inferSelect[], [{ n: number }]];
+    res.json({ items: (await withLines(rows)).map((o) => ({ ...toOrderDTO(o), flags: o.flags })), page: pg, pages: Math.max(1, Math.ceil(n / limit)), total: n });
   }));
 
   r.get('/orders/:id', mgr, wrap(async (req, res) => {
-    const o = await Order.findById(idParam(req));
+    const o = await loadOrder({ id: idParam(req) });
     if (!o) throw notFound('Order');
-    const [shipments, payments] = await Promise.all([Shipment.find({ orderId: o._id }).lean(), Payment.find({ orderId: o._id }).sort({ createdAt: -1 }).lean()]);
+    const [ships, pays] = await Promise.all([shipmentsFor(o.id), db().select().from(payments).where(eq(payments.orderId, o.id)).orderBy(desc(payments.createdAt))]);
     res.json({
-      ...toOrderDTO(o, shipments), flags: o.flags, refundedTotal: o.refundedTotal, notes: o.notes,
-      payments: payments.map((p: any) => ({ id: String(p._id), provider: p.provider, status: p.status, amount: p.amount, providerPaymentId: p.providerPaymentId, refunds: p.refunds })),
+      ...toOrderDTO(o, ships), flags: o.flags, refundedTotal: o.refundedTotal, notes: o.notes,
+      payments: pays.map((p) => ({ id: p.id, provider: p.provider, status: p.status, amount: p.amount, providerPaymentId: p.providerPaymentId, refunds: p.refunds })),
     });
   }));
 
   r.post('/orders/:id/status', mgr, wrap(async (req, res) => {
     const { status, note } = parse(orderStatusUpdateSchema, req.body);
-    const o = await orders.setStatus(idParam(req), status, req.user!.email, note);
-    await audit(req, 'order.status', 'order', String(o._id), `${o.number} → ${status}`);
+    const o = await svc.setStatus(idParam(req), status, req.user!.email, note);
+    await audit(req, 'order.status', 'order', o.id, `${o.number} → ${status}`);
     res.json(toOrderDTO(o));
   }));
 
   r.post('/orders/:id/shipments', mgr, wrap(async (req, res) => {
     const data = parse(shipmentInputSchema, req.body);
-    const s = await orders.addShipment(idParam(req), data, req.user!.email);
+    const s = await svc.addShipment(idParam(req), data, req.user!.email);
     await audit(req, 'order.ship', 'order', idParam(req), `Shipment ${data.carrier} ${data.trackingNumber}`);
-    res.status(201).json({ id: String(s._id) });
+    res.status(201).json({ id: s.id });
   }));
 
   r.patch('/shipments/:id', mgr, wrap(async (req, res) => {
     const { status } = parse(z.object({ status: shipmentInputSchema.shape.status }), req.body);
-    const s = await Shipment.findByIdAndUpdate(idParam(req), { $set: { status } }, { returnDocument: 'after' });
+    const [s] = await db().update(shipments).set({ status, updatedAt: new Date() }).where(eq(shipments.id, idParam(req))).returning();
     if (!s) throw notFound('Shipment');
-    if (status === 'delivered') await orders.setStatus(String(s.orderId), 'delivered', req.user!.email, 'Delivered').catch(() => undefined);
+    if (status === 'delivered') await svc.setStatus(s.orderId, 'delivered', req.user!.email, 'Delivered').catch(() => undefined);
     res.json({ ok: true });
   }));
 
   r.post('/orders/:id/refund', mgr, wrap(async (req, res) => {
     const { amount, reason } = parse(refundSchema, req.body);
-    await orders.refund(idParam(req), amount, reason, req.user!.email);
+    await svc.refund(idParam(req), amount, reason, req.user!.email);
     await audit(req, 'order.refund', 'order', idParam(req), `Refund ${amount} — ${reason}`);
     res.json({ ok: true });
   }));
 
   /* ---------- returns ---------- */
   r.get('/returns', mgr, wrap(async (req, res) => {
-    const filter: Record<string, unknown> = req.query.status ? { status: String(req.query.status) } : {};
-    const items = await ReturnRequest.find(filter).sort({ createdAt: -1 }).limit(200).lean();
-    res.json({ items: items.map((x) => ({ id: String(x._id), orderNumber: x.orderNumber, email: x.email, status: x.status, reason: x.reason, lines: x.lines, notes: x.notes, createdAt: (x as any).createdAt.toISOString() })) });
+    const where = req.query.status ? eq(returns.status, String(req.query.status)) : undefined;
+    const items = await db().select().from(returns).where(where).orderBy(desc(returns.createdAt)).limit(200);
+    res.json({ items: items.map((x) => ({ id: x.id, orderNumber: x.orderNumber, email: x.email, status: x.status, reason: x.reason, lines: x.lines, notes: x.notes, createdAt: x.createdAt.toISOString() })) });
   }));
   r.patch('/returns/:id', mgr, wrap(async (req, res) => {
     const { status, note } = parse(returnUpdateSchema, req.body);
-    const ret = await ReturnRequest.findByIdAndUpdate(idParam(req), { $set: { status }, $push: { notes: { at: new Date(), status, note, by: req.user!.email } } }, { returnDocument: 'after' });
+    const n = { at: new Date().toISOString(), status, ...(note ? { note } : {}), by: req.user!.email };
+    const [ret] = await db().update(returns).set({ status, notes: sql`${returns.notes} || ${JSON.stringify([n])}::jsonb`, updatedAt: new Date() }).where(eq(returns.id, idParam(req))).returning();
     if (!ret) throw notFound('Return');
-    await audit(req, 'return.update', 'return', String(ret._id), `${ret.orderNumber} → ${status}`);
+    await audit(req, 'return.update', 'return', ret.id, `${ret.orderNumber} → ${status}`);
     res.json({ ok: true });
   }));
 
   /* ---------- inventory ---------- */
   r.get('/inventory', mgr, wrap(async (req, res) => {
-    const filter = req.query.q ? { $or: [{ title: new RegExp(escapeRegex(String(req.query.q)), 'i') }, { 'variants.sku': new RegExp(escapeRegex(String(req.query.q)), 'i') }] } : {};
-    const products = await Product.find(filter).select('title slug status variants').sort({ title: 1 }).limit(300).lean();
-    const rows = products.flatMap((p) =>
-      p.variants.map((v) => ({
-        productId: String(p._id), variantId: String(v._id), title: p.title, status: p.status, sku: v.sku, active: v.active,
-        options: v.options instanceof Map ? Object.fromEntries(v.options) : v.options, stock: v.stock ?? null, madeToOrder: v.madeToOrder,
-      })),
-    );
-    res.json({ items: rows });
+    const q = req.query.q ? String(req.query.q) : '';
+    const rows = await db()
+      .select({ productId: products.id, title: products.title, status: products.status, variantId: variants.id, sku: variants.sku, active: variants.active, options: variants.options, stock: variants.stock, madeToOrder: variants.madeToOrder })
+      .from(variants)
+      .innerJoin(products, eq(products.id, variants.productId))
+      .where(q ? or(ilike(products.title, contains(q)), ilike(variants.sku, contains(q))) : undefined)
+      .orderBy(asc(products.title), asc(variants.position))
+      .limit(2000);
+    res.json({ items: rows.map((x) => ({ ...x, stock: x.stock ?? null })) });
   }));
   r.post('/inventory/adjust', mgr, wrap(async (req, res) => {
     const { variantId, stock, reason } = parse(inventoryAdjustSchema, req.body);
-    const p = await Product.findOne({ 'variants._id': variantId });
-    if (!p) throw notFound('Variant');
-    const before = p.variants.id(variantId)?.stock;
-    await Product.updateOne({ _id: p._id, 'variants._id': variantId }, { $set: { 'variants.$.stock': stock } });
-    const fresh = (await Product.findById(p._id))!;
-    await fresh.save(); // recompute blockers / availability
-    await refreshAvailability([String(p._id)]);
-    await audit(req, 'inventory.adjust', 'variant', variantId, `${p.title}: ${before ?? 'unknown'} → ${stock ?? 'unknown'} (${reason})`);
+    const [before] = await db().select({ productId: variants.productId, stock: variants.stock }).from(variants).where(eq(variants.id, variantId));
+    if (!before) throw notFound('Variant');
+    await db().update(variants).set({ stock }).where(eq(variants.id, variantId));
+    const p = (await refreshProduct(before.productId))!; // recompute blockers / availability
+    await audit(req, 'inventory.adjust', 'variant', variantId, `${p.title}: ${before.stock ?? 'unknown'} → ${stock ?? 'unknown'} (${reason})`);
     void revalidate('products', `product:${p.slug}`);
     res.json({ ok: true });
   }));
 
   /* ---------- discounts ---------- */
   r.get('/discounts', mgr, wrap(async (_req, res) => {
-    res.json({ items: (await Discount.find().sort({ createdAt: -1 }).lean()).map((d) => ({ ...d, id: String(d._id) })) });
+    res.json({ items: (await db().select().from(discounts).orderBy(desc(discounts.createdAt))).map(discountDTO) });
   }));
   r.post('/discounts', mgr, wrap(async (req, res) => {
     const data = parse(discountInputSchema, req.body);
-    if (await Discount.exists({ code: data.code })) throw conflict('That code already exists', 'duplicate');
-    const d = await Discount.create(data);
-    await audit(req, 'discount.create', 'discount', String(d._id), `Created ${d.code}`);
-    res.status(201).json({ id: String(d._id) });
+    const [exists] = await db().select({ id: discounts.id }).from(discounts).where(eq(discounts.code, data.code));
+    if (exists) throw conflict('That code already exists', 'duplicate');
+    const [d] = await db().insert(discounts).values({ ...data, maxUses: data.maxUses ?? null, startsAt: data.startsAt ?? null, endsAt: data.endsAt ?? null }).returning();
+    await audit(req, 'discount.create', 'discount', d!.id, `Created ${d!.code}`);
+    res.status(201).json({ id: d!.id });
   }));
   r.put('/discounts/:id', mgr, wrap(async (req, res) => {
     const data = parse(discountInputSchema, req.body);
-    const d = await Discount.findByIdAndUpdate(idParam(req), { $set: data }, { returnDocument: 'after' });
+    const [d] = await db().update(discounts).set({ ...data, maxUses: data.maxUses ?? null, startsAt: data.startsAt ?? null, endsAt: data.endsAt ?? null, updatedAt: new Date() }).where(eq(discounts.id, idParam(req))).returning();
     if (!d) throw notFound('Discount');
-    await audit(req, 'discount.update', 'discount', String(d._id), `Updated ${d.code}`);
-    res.json({ id: String(d._id) });
+    await audit(req, 'discount.update', 'discount', d.id, `Updated ${d.code}`);
+    res.json({ id: d.id });
   }));
   r.delete('/discounts/:id', mgr, wrap(async (req, res) => {
-    const d = await Discount.findByIdAndDelete(idParam(req));
-    if (d) await audit(req, 'discount.delete', 'discount', String(d._id), `Deleted ${d.code}`);
+    const [d] = await db().delete(discounts).where(eq(discounts.id, idParam(req))).returning();
+    if (d) await audit(req, 'discount.delete', 'discount', d.id, `Deleted ${d.code}`);
     res.json({ ok: true });
   }));
 
   /* ---------- customers & subscribers ---------- */
   r.get('/customers', mgr, wrap(async (req, res) => {
     const q = req.query.q ? String(req.query.q) : '';
-    const filter: Record<string, unknown> = { role: 'customer' };
-    if (q) filter.$or = [{ name: new RegExp(escapeRegex(q), 'i') }, { email: new RegExp(escapeRegex(q), 'i') }];
-    const users = await User.find(filter).sort({ createdAt: -1 }).limit(200).lean();
-    const spend = await Order.aggregate([
-      { $match: { email: { $in: users.map((u) => u.email) }, status: { $in: ['paid', 'processing', 'shipped', 'delivered'] } } },
-      { $group: { _id: '$email', orders: { $sum: 1 }, spent: { $sum: '$total' } } },
-    ]);
-    const m = new Map(spend.map((s) => [s._id as string, s]));
+    const list = await db()
+      .select()
+      .from(users)
+      .where(and(eq(users.role, 'customer'), q ? or(ilike(users.name, contains(q)), ilike(users.email, contains(q))) : undefined))
+      .orderBy(desc(users.createdAt))
+      .limit(200);
+    const emails = list.map((u) => u.email);
+    const spend = emails.length
+      ? await db()
+          .select({ email: orders.email, orders: sql<number>`count(*)::int`, spent: sql<number>`coalesce(sum(${orders.total}), 0)::int` })
+          .from(orders)
+          .where(and(inArray(orders.email, emails), inArray(orders.status, PAID)))
+          .groupBy(orders.email)
+      : [];
+    const m = new Map(spend.map((s) => [s.email, s]));
     res.json({
-      items: users.map((u) => ({
-        id: String(u._id), name: u.name, email: u.email, phone: u.phone ?? null, createdAt: (u as any).createdAt.toISOString(),
+      items: list.map((u) => ({
+        id: u.id, name: u.name, email: u.email, phone: u.phone ?? null, createdAt: u.createdAt.toISOString(),
         orders: m.get(u.email)?.orders ?? 0, spent: m.get(u.email)?.spent ?? 0, deletionRequestedAt: u.deletionRequestedAt?.toISOString() ?? null,
       })),
     });
@@ -158,25 +165,28 @@ export function adminCommerceRoutes({ orders, revalidate }: Deps) {
 
   /** Privacy: erase a customer's personal data on request. Order records are retained (tax/legal) with the contact details kept on the order only. */
   r.post('/customers/:id/anonymize', requireRole('admin'), wrap(async (req, res) => {
-    const u = await User.findById(idParam(req));
+    const id = idParam(req);
+    const [u] = await db().select().from(users).where(eq(users.id, id));
     if (!u || u.role !== 'customer') throw notFound('Customer');
-    const id = String(u._id);
-    await User.updateOne({ _id: u._id }, { $set: { name: 'Deleted customer', email: `deleted+${id}@invalid.local`, addresses: [], phone: null, passwordHash: 'x', deletionRequestedAt: new Date() }, $inc: { tokenVersion: 1 } });
-    await Subscriber.deleteOne({ email: u.email });
+    await db().transaction(async (tx) => {
+      await tx.update(users).set({ name: 'Deleted customer', email: `deleted+${id}@invalid.local`, phone: null, passwordHash: 'x', deletionRequestedAt: u.deletionRequestedAt ?? new Date(), tokenVersion: u.tokenVersion + 1 }).where(eq(users.id, id));
+      await tx.delete(addresses).where(eq(addresses.userId, id));
+      await tx.delete(subscribers).where(eq(subscribers.email, u.email));
+    });
     await audit(req, 'customer.anonymize', 'user', id, 'Customer data erased on request');
     res.json({ ok: true });
   }));
 
   r.get('/subscribers', mgr, wrap(async (req, res) => {
-    const items = await Subscriber.find().sort({ createdAt: -1 }).limit(2000).lean();
+    const items = await db().select().from(subscribers).where(isNull(subscribers.unsubscribedAt)).orderBy(desc(subscribers.createdAt)).limit(5000);
     if (req.query.format === 'csv') {
       res.type('text/csv').set('Content-Disposition', 'attachment; filename="subscribers.csv"');
-      return void res.send('email,source,subscribed_at\n' + items.map((s) => `${s.email},${s.source ?? ''},${(s as any).createdAt.toISOString()}`).join('\n'));
+      return void res.send('email,source,subscribed_at\n' + items.map((s) => `${s.email},${s.source ?? ''},${s.createdAt.toISOString()}`).join('\n'));
     }
-    res.json({ items: items.map((s) => ({ id: String(s._id), email: s.email, source: s.source ?? null, createdAt: (s as any).createdAt.toISOString() })), total: items.length });
+    res.json({ items: items.map((s) => ({ id: s.id, email: s.email, source: s.source ?? null, createdAt: s.createdAt.toISOString() })), total: items.length });
   }));
   r.delete('/subscribers/:id', mgr, wrap(async (req, res) => {
-    await Subscriber.findByIdAndDelete(idParam(req));
+    await db().delete(subscribers).where(eq(subscribers.id, idParam(req)));
     res.json({ ok: true });
   }));
 

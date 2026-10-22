@@ -1,16 +1,17 @@
 import { loadConfig } from './config';
 import { buildDeps, createApp } from './app';
-import { connectDb, disconnectDb } from './lib/db';
+import { connectDb, disconnectDb, runMigrations } from './db';
 import { logger } from './logger';
 
 const config = loadConfig();
-await connectDb(config.MONGODB_URI);
+connectDb(config.DATABASE_URL, { max: config.DB_POOL_MAX });
+if (process.env.RUN_MIGRATIONS === 'true') await runMigrations();
 const deps = buildDeps(config);
 const app = createApp(deps);
 
 const server = app.listen(config.PORT, () => logger.info({ port: config.PORT, env: config.NODE_ENV, providers: Object.keys(deps.adapters) }, 'API listening'));
 
-// release stock held by abandoned payments
+// release stock held by abandoned payments (serverless deployments rely on the lazy sweep in the checkout routes)
 const sweep = setInterval(() => {
   deps.orders.expireStale().then((n) => n && logger.info({ n }, 'expired stale payment holds')).catch((err) => logger.error({ err }, 'expiry sweep failed'));
 }, 60_000);

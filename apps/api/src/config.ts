@@ -9,15 +9,20 @@ const bool = z
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
-  MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/cityroyalty'),
+  /** Postgres (Supabase). Use the transaction pooler (port 6543) for serverless hosts. */
+  DATABASE_URL: z.string().default('postgres://postgres:postgres@127.0.0.1:54329/cityroyalty'),
+  DB_POOL_MAX: z.coerce.number().default(10),
   JWT_SECRET: z.string().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   PUBLIC_WEB_URL: z.string().default('http://localhost:3000'),
   ADMIN_URL: z.string().default('http://localhost:3001'),
   TRUST_PROXY: z.string().default('0'),
-  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'supabase']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./storage'),
   PUBLIC_MEDIA_URL: z.string().default('/media'),
+  /** supabase driver: the media-upload Edge Function URL and the token it accepts */
+  SUPABASE_MEDIA_UPLOAD_URL: z.string().optional(),
+  SUPABASE_MEDIA_TOKEN: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().default('auto'),
   S3_ENDPOINT: z.string().optional(),
@@ -48,6 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (prod && (!raw.JWT_SECRET || raw.JWT_SECRET.length < 32)) throw new Error('JWT_SECRET (32+ chars) is required in production');
   if (prod && raw.PAYMENT_MOCK_ENABLED) throw new Error('PAYMENT_MOCK_ENABLED must not be true in production');
   if (prod && raw.STORAGE_DRIVER === 'local') console.warn('[config] STORAGE_DRIVER=local in production: media will not survive redeploys');
+  if (raw.STORAGE_DRIVER === 'supabase' && (!raw.SUPABASE_MEDIA_UPLOAD_URL || !raw.SUPABASE_MEDIA_TOKEN)) throw new Error('SUPABASE_MEDIA_UPLOAD_URL and SUPABASE_MEDIA_TOKEN are required for STORAGE_DRIVER=supabase');
   const jwtSecret = raw.JWT_SECRET ?? randomBytes(32).toString('hex');
   return {
     ...raw,

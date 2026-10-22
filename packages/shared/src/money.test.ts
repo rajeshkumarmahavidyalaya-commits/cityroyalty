@@ -44,7 +44,7 @@ describe('schemas', () => {
     const base = { email: 'a@b.com', shippingAddress: addr, provider: 'mock' as const };
     expect(() => checkoutSchema.parse({ ...base, lines: [], idempotencyKey: 'x'.repeat(20) })).toThrow();
     expect(() =>
-      checkoutSchema.parse({ ...base, lines: [{ productId: 'a'.repeat(24), variantId: 'b'.repeat(24), qty: 1 }], idempotencyKey: 'short' }),
+      checkoutSchema.parse({ ...base, lines: [{ productId: '00000000-0000-4000-8000-000000000001', variantId: '00000000-0000-4000-8000-000000000002', qty: 1 }], idempotencyKey: 'short' }),
     ).toThrow();
   });
 });

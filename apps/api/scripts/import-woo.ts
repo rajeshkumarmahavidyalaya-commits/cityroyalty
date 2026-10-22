@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../src/config';
-import { connectDb, disconnectDb } from '../src/lib/db';
+import { connectDb, disconnectDb } from '../src/db';
 import { createStorage } from '../src/lib/storage';
 import { importWooSnapshot } from '../src/services/importer';
 
@@ -12,7 +12,7 @@ const val = (n: string) => args[args.indexOf(`--${n}`) + 1];
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const config = loadConfig();
-await connectDb(config.MONGODB_URI);
+connectDb(config.DATABASE_URL, { max: 4 });
 const report = await importWooSnapshot({
   dir: val('dir') ?? path.join(here, '../data/woo-snapshot'),
   storage: flag('images') ? createStorage(config) : undefined,

@@ -5,7 +5,7 @@ cityroyalty/
 ├─ apps/
 │  ├─ web/        Next.js 16 App Router storefront (RSC, Tailwind 4, Motion)  → Vercel
 │  ├─ admin/      Next.js 16 admin dashboard (role gated, noindex)              → Vercel (separate project)
-│  ├─ api/        Express 5 + Mongoose 9 REST API                               → any Node host (Render/Fly/Railway/VPS)
+│  ├─ api/        Express 5 + Drizzle/Postgres REST API                        → Vercel Function or any Node host
 │  └─ showcase/   Original three.js jacket microsite (static, unchanged)
 ├─ packages/
 │  └─ shared/     zod schemas, TS types, money/slug helpers, API contract (single source of truth)
@@ -24,11 +24,11 @@ cityroyalty/
 ## Backend (apps/api)
 
 * Express 5, `helmet`, `cors` allow-list, `express-rate-limit` (global + stricter on auth/checkout), `pino` structured logging with request ids, central error handler returning `{error:{code,message,details}}`.
-* Mongoose models: `User`, `Product` (embedded `variants`, `images`), `Collection`, `Cart`, `Wishlist`, `Order`, `Payment`, `PaymentEvent` (idempotency ledger), `Discount`, `Shipment`, `ReturnRequest`, `Article`, `Campaign`, `Subscriber`, `Setting`, `AuditLog`, `Counter`.
+* Postgres (Supabase in production) via Drizzle ORM, all tables in a private `cr` schema that PostgREST does not expose, RLS enabled on every table. Tables: `users`, `addresses`, `products`, `variants`, `product_images`, `assets`, `collections`, `carts`, `wishlists`, `orders` + `order_lines`, `payments`, `payment_events` (idempotency ledger, unique provider+event id), `discounts`, `shipments`, `returns`, `articles`, `pages`, `campaigns`, `subscribers`, `settings`, `audit_logs`; order numbers from `cr.order_number_seq`. Schema in `apps/api/src/db/schema.ts`, migrations in `apps/api/drizzle/`.
 * Auth: access JWT in `httpOnly; SameSite=Lax; Secure` cookie (+ CSRF double-submit header for state-changing requests from browsers), bcrypt password hashes, password-reset tokens (hashed at rest), roles `customer | content | manager | admin`.
-* Inventory: stock lives on variants. Checkout decrements with an atomic conditional update (`$inc` guarded by `stock >= qty`) so two buyers can never oversell; on payment failure/expiry the reservation is released. Webhooks are idempotent via a unique `PaymentEvent.eventId`.
+* Inventory: stock lives on variants. Checkout runs in one transaction (discount use + stock + order insert, all or nothing) and decrements with a conditional `UPDATE … WHERE stock >= qty` so two buyers can never oversell; on payment failure/expiry the reservation is released (swept lazily on cart/checkout requests, so it also works on serverless). Webhooks are idempotent via the unique `payment_events` key.
 * Payments: provider adapter interface (`createOrder`, `verifySignature`, `parseWebhook`, `refund`) with Razorpay (India), Stripe (international, behind a flag) and a `mock` adapter for development/tests. Only provider tokens/ids are stored — never card data.
-* Images: `sharp` pipeline → AVIF + WebP at 320/640/960/1280/1920 w, blur placeholder, content-hash filenames; storage adapter (`local` for dev, `s3` for production/CDN).
+* Images: `sharp` pipeline → AVIF + WebP at 320/640/960/1280/1920 w, blur placeholder, content-hash filenames; storage adapter (`local` for dev, `s3`, or `supabase` — uploads through the `media-upload` Edge Function into a public Storage bucket).
 * Notifications: email adapter (SMTP/nodemailer; `console` transport in dev) for order confirmation, shipped, password reset, payment-failed recovery.
 
 ## Frontend (apps/web)
@@ -45,7 +45,7 @@ cityroyalty/
 | --- | --- | --- |
 | apps/web | Vercel | env: `API_URL`, `NEXT_PUBLIC_SITE_URL` |
 | apps/admin | Vercel | env: `API_URL`; `X-Robots-Tag: noindex` |
-| apps/api | Node host | env in `.env.example`; needs MongoDB Atlas + S3-compatible bucket |
-| Images | S3/R2 + CDN | `STORAGE_DRIVER=s3` |
+| apps/api | Vercel Function (`src/vercel.ts`) or Node host | env in `.env.example`; Supabase Postgres via the transaction pooler |
+| Images | Supabase Storage (public `media` bucket) or S3/R2 + CDN | `STORAGE_DRIVER=supabase` or `s3` |
 
 See `06-deployment.md`.

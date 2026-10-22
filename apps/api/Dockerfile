@@ -19,6 +19,7 @@ COPY --from=build /repo/packages/shared/package.json packages/shared/
 RUN npm ci --omit=dev --workspace @cityroyalty/api --workspace @cityroyalty/shared --include-workspace-root && npm cache clean --force
 COPY --from=build /repo/apps/api/dist apps/api/dist
 COPY apps/api/data apps/api/data
+COPY apps/api/drizzle apps/api/drizzle
 USER node
 EXPOSE 4000
 WORKDIR /app/apps/api

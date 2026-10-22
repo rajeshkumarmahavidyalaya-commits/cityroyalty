@@ -1,68 +1,46 @@
-import type { QueryFilter } from 'mongoose';
-import {
-  IMAGE_SLOTS,
-  type FacetsDTO,
-  type ImageDTO,
-  type Paged,
-  type ProductCardDTO,
-  type ProductDTO,
-  type ProductQuery,
-  type VariantDTO,
-} from '@cityroyalty/shared';
-import { escapeRegex } from '../lib/http';
-import { Product, type ProductDoc } from '../models';
+import { and, arrayOverlaps, asc, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import type { FacetsDTO, ImageDTO, Paged, ProductCardDTO, ProductDTO, ProductQuery, VariantDTO } from '@cityroyalty/shared';
+import { db } from '../db';
+import { products, type ImageRow, type VariantRow } from '../db/schema';
+import { hydrate, type FullProduct } from './products';
 
-type Lean = ProductDoc & { _id: unknown };
-type LeanImage = ProductDoc['images'][number] & { _id?: unknown };
-type LeanVariant = ProductDoc['variants'][number] & { _id?: unknown };
-
-const optionsOf = (v: LeanVariant): Record<string, string> =>
-  v.options instanceof Map ? Object.fromEntries(v.options) : ((v.options as unknown as Record<string, string>) ?? {});
-
-export function toImage(i: LeanImage): ImageDTO {
+export function toImage(i: ImageRow): ImageDTO {
   return {
-    id: String(i._id),
-    slot: i.slot,
-    kind: i.kind,
+    id: i.id,
+    slot: i.slot as ImageDTO['slot'],
+    kind: i.kind as ImageDTO['kind'],
     alt: i.alt,
     colour: i.colour ?? undefined,
     width: i.width ?? 0,
     height: i.height ?? 0,
     src: i.src ?? '',
-    avif: (i.avif ?? []).map((s) => ({ w: s.w!, url: s.url! })),
-    webp: (i.webp ?? []).map((s) => ({ w: s.w!, url: s.url! })),
+    avif: i.avif,
+    webp: i.webp,
     blur: i.blur ?? undefined,
   };
 }
 
 /** Concept art never leaves the API on a product (docs/product-accuracy.md). */
-export function publicImages(p: Pick<ProductDoc, 'images'>): ImageDTO[] {
-  return (p.images ?? [])
-    .filter((i) => i.kind === 'photo')
-    .slice()
-    .sort((a, b) => IMAGE_SLOTS.indexOf(a.slot) - IMAGE_SLOTS.indexOf(b.slot) || (a.position ?? 0) - (b.position ?? 0))
-    .map(toImage);
-}
+export const publicImages = (p: Pick<FullProduct, 'images'>): ImageDTO[] => p.images.filter((i) => i.kind === 'photo').map(toImage);
 
-export function toVariant(v: LeanVariant): VariantDTO {
+export function toVariant(v: VariantRow): VariantDTO {
   const stock = v.stock ?? 0;
-  const available = v.active && v.price > 0 && (v.madeToOrder || stock > 0);
   return {
-    id: String(v._id),
+    id: v.id,
     sku: v.sku,
-    options: optionsOf(v),
+    options: v.options,
     price: v.price,
     compareAtPrice: v.compareAtPrice && v.compareAtPrice > v.price ? v.compareAtPrice : null,
-    available,
+    available: v.active && v.price > 0 && (v.madeToOrder || stock > 0),
     lowStock: !v.madeToOrder && stock > 0 && stock <= 5 ? stock : null,
     madeToOrder: v.madeToOrder,
   };
 }
 
-export function toCard(p: Lean): ProductCardDTO {
+export function toCard(p: FullProduct): ProductCardDTO {
   const imgs = publicImages(p);
   return {
-    id: String(p._id),
+    id: p.id,
     slug: p.slug,
     title: p.title,
     priceFrom: p.priceFrom,
@@ -78,7 +56,7 @@ export function toCard(p: Lean): ProductCardDTO {
   };
 }
 
-export function toProduct(p: Lean): ProductDTO {
+export function toProduct(p: FullProduct): ProductDTO {
   return {
     ...toCard(p),
     sku: p.sku,
@@ -86,68 +64,73 @@ export function toProduct(p: Lean): ProductDTO {
     highlights: p.highlights,
     material: p.material ?? undefined,
     care: p.care ?? undefined,
-    options: p.options.map((o) => ({ name: o.name!, values: [...o.values] })),
+    options: p.options,
     variants: p.variants.filter((v) => v.active).map(toVariant),
     images: publicImages(p),
-    seo: { title: p.seo?.title ?? undefined, description: p.seo?.description ?? undefined, noindex: p.seo?.noindex ?? undefined },
-    updatedAt: (p as unknown as { updatedAt: Date }).updatedAt.toISOString(),
+    seo: { title: p.seo.title || undefined, description: p.seo.description || undefined, noindex: p.seo.noindex || undefined },
+    updatedAt: p.updatedAt.toISOString(),
   };
 }
 
-const SORTS: Record<ProductQuery['sort'], Record<string, 1 | -1>> = {
-  featured: { featured: -1, sortOrder: 1, publishedAt: -1, _id: 1 },
-  newest: { publishedAt: -1, _id: 1 },
-  'price-asc': { priceFrom: 1, _id: 1 },
-  'price-desc': { priceFrom: -1, _id: 1 },
-  title: { title: 1, _id: 1 },
+const SORTS: Record<ProductQuery['sort'], SQL[]> = {
+  featured: [desc(products.featured), asc(products.sortOrder), sql`${products.publishedAt} desc nulls last`, asc(products.id)],
+  newest: [sql`${products.publishedAt} desc nulls last`, asc(products.id)],
+  'price-asc': [asc(products.priceFrom), asc(products.id)],
+  'price-desc': [desc(products.priceFrom), asc(products.id)],
+  title: [asc(products.title), asc(products.id)],
 };
 
-export function buildFilter(q: ProductQuery, collectionSlugs?: string[]): QueryFilter<ProductDoc> {
-  const f: QueryFilter<ProductDoc> = { status: 'published' };
-  if (collectionSlugs?.length) f.collections = { $in: collectionSlugs };
+/** ILIKE pattern with %, _ and \ escaped so user input is matched literally. */
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, '\\$&');
+
+export function buildFilter(q: ProductQuery, collectionSlugs?: string[]): SQL {
+  const parts: (SQL | undefined)[] = [eq(products.status, 'published')];
+  if (collectionSlugs?.length) parts.push(arrayOverlaps(products.collections, collectionSlugs));
   if (q.q) {
-    const tokens = q.q.split(/\s+/).filter(Boolean).slice(0, 5);
-    f.$and = tokens.map((t) => {
-      const re = new RegExp(escapeRegex(t), 'i');
-      return { $or: [{ title: re }, { sku: re }, { tags: re }, { colours: re }, { collections: re }] };
-    });
+    for (const token of q.q.split(/\s+/).filter(Boolean).slice(0, 5)) {
+      const like = `%${likeEscape(token)}%`;
+      parts.push(
+        or(
+          ilike(products.title, like),
+          ilike(products.sku, like),
+          sql`array_to_string(${products.tags}, ' ') ilike ${like}`,
+          sql`array_to_string(${products.colours}, ' ') ilike ${like}`,
+          sql`array_to_string(${products.collections}, ' ') ilike ${like}`,
+        ),
+      );
+    }
   }
-  if (q.size.length) f.sizes = { $in: q.size };
-  if (q.colour.length) f.colours = { $in: q.colour };
-  if (q.material.length) f.materialKey = { $in: q.material };
-  if (q.minPrice != null || q.maxPrice != null) {
-    f.priceFrom = { ...(q.minPrice != null && { $gte: q.minPrice }), ...(q.maxPrice != null && { $lte: q.maxPrice }) };
-  }
-  if (q.inStock) f.available = true;
-  if (q.featured) f.featured = true;
-  return f;
+  if (q.size.length) parts.push(arrayOverlaps(products.sizes, q.size));
+  if (q.colour.length) parts.push(arrayOverlaps(products.colours, q.colour));
+  if (q.material.length) parts.push(inArray(products.materialKey, q.material));
+  if (q.minPrice != null) parts.push(gte(products.priceFrom, q.minPrice));
+  if (q.maxPrice != null) parts.push(lte(products.priceFrom, q.maxPrice));
+  if (q.inStock) parts.push(eq(products.available, true));
+  if (q.featured) parts.push(eq(products.featured, true));
+  return and(...parts)!;
 }
 
 export async function listProducts(q: ProductQuery, collectionSlugs?: string[]): Promise<Paged<ProductCardDTO> & { facets: FacetsDTO }> {
-  const filter = buildFilter(q, collectionSlugs);
+  const where = buildFilter(q, collectionSlugs);
   const base = buildFilter({ ...q, size: [], colour: [], material: [], minPrice: undefined, maxPrice: undefined, inStock: false }, collectionSlugs);
-  const [total, docs, facetDocs] = await Promise.all([
-    Product.countDocuments(filter),
-    Product.find(filter)
-      .sort(SORTS[q.sort])
-      .skip((q.page - 1) * q.limit)
-      .limit(q.limit)
-      .select('-variants.wooId -description')
-      .lean(),
-    Product.find(base).select('sizes colours materialKey priceFrom').lean(),
-  ]);
+  const [[{ n }], rows, facetRows] = await Promise.all([
+    db().select({ n: sql<number>`count(*)::int` }).from(products).where(where),
+    db().select().from(products).where(where).orderBy(...SORTS[q.sort]).limit(q.limit).offset((q.page - 1) * q.limit),
+    db().select({ sizes: products.sizes, colours: products.colours, materialKey: products.materialKey, priceFrom: products.priceFrom }).from(products).where(base),
+  ]) as [[{ n: number }], typeof products.$inferSelect[], { sizes: string[]; colours: string[]; materialKey: string | null; priceFrom: number }[]];
+  const full = await hydrate(rows);
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => Boolean(x)))];
-  const prices = facetDocs.map((d) => d.priceFrom).filter((n) => n > 0);
+  const prices = facetRows.map((d) => d.priceFrom).filter((x) => x > 0);
   return {
-    items: docs.map((d) => toCard(d as unknown as Lean)),
+    items: full.map(toCard),
     page: q.page,
     limit: q.limit,
-    total,
-    pages: Math.max(1, Math.ceil(total / q.limit)),
+    total: n,
+    pages: Math.max(1, Math.ceil(n / q.limit)),
     facets: {
-      sizes: uniq(facetDocs.flatMap((d) => d.sizes)),
-      colours: uniq(facetDocs.flatMap((d) => d.colours)).sort(),
-      materials: uniq(facetDocs.map((d) => d.materialKey)).sort(),
+      sizes: uniq(facetRows.flatMap((d) => d.sizes)),
+      colours: uniq(facetRows.flatMap((d) => d.colours)).sort(),
+      materials: uniq(facetRows.map((d) => d.materialKey)).sort(),
       price: { min: prices.length ? Math.min(...prices) : 0, max: prices.length ? Math.max(...prices) : 0 },
     },
   };

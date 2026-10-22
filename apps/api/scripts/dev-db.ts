@@ -1,11 +1,19 @@
-// Persistent local MongoDB for development: `npm run dev:db -w @cityroyalty/api`, then MONGODB_URI=mongodb://127.0.0.1:27017/cityroyalty
-import { mkdirSync } from 'node:fs';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+// Persistent local Postgres for development: `npm run dev:db -w @cityroyalty/api`,
+// then DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54329/cityroyalty (the default) and RUN_MIGRATIONS=true.
+import { existsSync } from 'node:fs';
+import EmbeddedPostgres from 'embedded-postgres';
+import postgres from 'postgres';
 
-mkdirSync('.data/mongo', { recursive: true });
-const m = await MongoMemoryServer.create({ instance: { port: 27017, dbPath: '.data/mongo', storageEngine: 'wiredTiger' } });
-console.log(`MongoDB dev server running: ${m.getUri()}  (Ctrl+C to stop; data in apps/api/.data/mongo)`);
+const databaseDir = '.data/postgres';
+const fresh = !existsSync(databaseDir);
+const pg = new EmbeddedPostgres({ databaseDir, user: 'postgres', password: 'postgres', port: 54329, persistent: true });
+if (fresh) await pg.initialise();
+await pg.start();
+const admin = postgres('postgres://postgres:postgres@127.0.0.1:54329/postgres', { max: 1, onnotice: () => {} });
+if (!(await admin`select 1 from pg_database where datname = 'cityroyalty'`).length) await admin.unsafe('create database cityroyalty');
+await admin.end();
+console.log('Postgres dev server running on 127.0.0.1:54329 (Ctrl+C to stop; data in apps/api/.data/postgres)');
 process.on('SIGINT', async () => {
-  await m.stop();
+  await pg.stop();
   process.exit(0);
 });

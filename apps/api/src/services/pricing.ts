@@ -1,6 +1,9 @@
+import { eq, inArray } from 'drizzle-orm';
 import { MAX_QTY_PER_LINE, prettySize, type CartInput, type PricedCartDTO, type PricedLineDTO, type SettingsInput } from '@cityroyalty/shared';
-import { Discount, Product, type DiscountDoc, type ProductDoc } from '../models';
-import { publicImages, toImage } from './catalog';
+import { db } from '../db';
+import { discounts, products, type DiscountRow, type VariantRow } from '../db/schema';
+import { publicImages } from './catalog';
+import { hydrate } from './products';
 
 export interface ResolvedLine {
   productId: string;
@@ -18,44 +21,38 @@ export interface ResolvedLine {
 export interface PricingResult {
   priced: PricedCartDTO;
   resolved: ResolvedLine[];
-  discountDoc: (DiscountDoc & { _id: unknown }) | null;
+  discountRow: DiscountRow | null;
   codFee: number;
 }
 
-type Variant = ProductDoc['variants'][number] & { _id: unknown };
-
-const labelFor = (v: Variant): string => {
-  const o = v.options instanceof Map ? Object.fromEntries(v.options) : ((v.options as unknown as Record<string, string>) ?? {});
-  return Object.entries(o)
+const labelFor = (v: VariantRow): string =>
+  Object.entries(v.options)
     .map(([k, val]) => (/^size$/i.test(k) ? prettySize(val) : val))
     .join(' · ');
-};
 
-export function validateDiscount(d: (DiscountDoc & { _id: unknown }) | null, subtotal: number, now = new Date()): string | null {
+export function validateDiscount(d: DiscountRow | null | undefined, subtotal: number, now = new Date()): string | null {
   if (!d || !d.active) return 'That code is not valid';
   if (d.startsAt && d.startsAt > now) return 'That code is not active yet';
   if (d.endsAt && d.endsAt < now) return 'That code has expired';
   if (d.maxUses != null && d.usedCount >= d.maxUses) return 'That code has been fully redeemed';
-  if (subtotal < d.minSubtotal) return `Spend a little more to use this code (minimum applies)`;
+  if (subtotal < d.minSubtotal) return 'Spend a little more to use this code (minimum applies)';
   return null;
 }
 
-export async function priceCart(
-  input: Pick<CartInput, 'lines' | 'discountCode'>,
-  settings: SettingsInput,
-  opts: { cod?: boolean } = {},
-): Promise<PricingResult> {
-  // merge duplicate variants
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function priceCart(input: Pick<CartInput, 'lines' | 'discountCode'>, settings: SettingsInput, opts: { cod?: boolean } = {}): Promise<PricingResult> {
   const merged = new Map<string, { productId: string; variantId: string; qty: number }>();
   for (const l of input.lines) {
-    const k = l.variantId;
-    const cur = merged.get(k);
+    const cur = merged.get(l.variantId);
     if (cur) cur.qty += l.qty;
-    else merged.set(k, { productId: l.productId, variantId: l.variantId, qty: l.qty });
+    else merged.set(l.variantId, { productId: l.productId, variantId: l.variantId, qty: l.qty });
   }
   const wanted = [...merged.values()];
-  const products = await Product.find({ _id: { $in: wanted.map((w) => w.productId) }, status: 'published' }).lean();
-  const byId = new Map(products.map((p) => [String(p._id), p]));
+  const ids = [...new Set(wanted.map((w) => w.productId).filter((x) => UUID.test(x)))];
+  const rows = ids.length ? await db().select().from(products).where(inArray(products.id, ids)) : [];
+  const full = await hydrate(rows.filter((r) => r.status === 'published'));
+  const byId = new Map(full.map((p) => [p.id, p]));
 
   const lines: PricedLineDTO[] = [];
   const resolved: ResolvedLine[] = [];
@@ -63,7 +60,7 @@ export async function priceCart(
 
   for (const w of wanted) {
     const p = byId.get(w.productId);
-    const v = p?.variants.find((x) => String(x._id) === w.variantId && x.active) as Variant | undefined;
+    const v = p?.variants.find((x) => x.id === w.variantId && x.active);
     if (!p || !v || !(v.price > 0)) {
       ok = false;
       lines.push({
@@ -78,9 +75,9 @@ export async function priceCart(
     if (issue) ok = false;
     const img = publicImages(p)[0] ?? null;
     lines.push({
-      productId: w.productId, variantId: w.variantId, qty, title: p.title, slug: p.slug, sku: v.sku, optionsLabel: labelFor(v),
-      image: img, unitPrice: v.price, compareAt: v.compareAtPrice && v.compareAtPrice > v.price ? v.compareAtPrice : null,
-      lineTotal: v.price * qty, maxQty: cap === null ? MAX_QTY_PER_LINE : Math.min(cap, MAX_QTY_PER_LINE), issue,
+      productId: w.productId, variantId: w.variantId, qty, title: p.title, slug: p.slug, sku: v.sku, optionsLabel: labelFor(v), image: img,
+      unitPrice: v.price, compareAt: v.compareAtPrice && v.compareAtPrice > v.price ? v.compareAtPrice : null, lineTotal: v.price * qty,
+      maxQty: cap === null ? MAX_QTY_PER_LINE : Math.min(cap, MAX_QTY_PER_LINE), issue,
     });
     resolved.push({
       productId: w.productId, variantId: w.variantId, qty, title: p.title, slug: p.slug, sku: v.sku, optionsLabel: labelFor(v),
@@ -90,17 +87,16 @@ export async function priceCart(
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
-  // discount
   let discount: PricedCartDTO['discount'] = null;
   let discountError: string | undefined;
-  let discountDoc: PricingResult['discountDoc'] = null;
+  let discountRow: DiscountRow | null = null;
   let freeShip = false;
   const code = input.discountCode?.trim().toUpperCase();
   if (code) {
-    const d = (await Discount.findOne({ code }).lean()) as (DiscountDoc & { _id: unknown }) | null;
+    const [d] = await db().select().from(discounts).where(eq(discounts.code, code));
     discountError = validateDiscount(d, subtotal) ?? undefined;
     if (!discountError && d) {
-      discountDoc = d;
+      discountRow = d;
       let amount = 0;
       let description = '';
       if (d.type === 'percent') {
@@ -118,7 +114,6 @@ export async function priceCart(
   }
   const discountAmount = discount?.amount ?? 0;
 
-  // shipping
   let shipping: number | null;
   let shippingNote: string | undefined;
   const { freeThreshold, flatRate } = settings.shipping;
@@ -135,9 +130,7 @@ export async function priceCart(
   return {
     priced: { lines, subtotal, discount, discountError, shipping, shippingNote, total, currency: 'INR', ok: ok && shipping != null },
     resolved,
-    discountDoc,
+    discountRow,
     codFee,
   };
 }
-
-export { toImage };

@@ -1,5 +1,7 @@
 import { type SettingsInput } from '@cityroyalty/shared';
-import { Setting } from '../models';
+import { eq } from 'drizzle-orm';
+import { db } from '../db';
+import { settings } from '../db/schema';
 
 /**
  * Defaults contain only facts published on cityroyalty.in. Values the merchant has not confirmed
@@ -16,10 +18,10 @@ export const DEFAULT_SETTINGS: SettingsInput = {
 
 const KEY = 'site';
 export async function getSettings(): Promise<SettingsInput> {
-  const doc = await Setting.findOne({ key: KEY }).lean();
-  return { ...DEFAULT_SETTINGS, ...((doc?.value as Partial<SettingsInput>) ?? {}) } as SettingsInput;
+  const [row] = await db().select().from(settings).where(eq(settings.key, KEY));
+  return { ...DEFAULT_SETTINGS, ...((row?.value as Partial<SettingsInput>) ?? {}) } as SettingsInput;
 }
 export async function saveSettings(value: SettingsInput) {
-  await Setting.updateOne({ key: KEY }, { $set: { value } }, { upsert: true });
+  await db().insert(settings).values({ key: KEY, value }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
   return value;
 }

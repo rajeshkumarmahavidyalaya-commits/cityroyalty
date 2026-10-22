@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `apps/web` | Customer storefront with a scroll-driven 3D jacket hero | Next.js 16 (App Router, RSC), TypeScript, Tailwind 4, Motion, three.js |
 | `apps/admin` | Role-protected commerce back-office | Next.js 16, TypeScript, Tailwind 4 |
-| `apps/api` | REST API, payments, inventory, import tools | Express 5, Mongoose 9 (MongoDB), zod, sharp, pino |
+| `apps/api` | REST API, payments, inventory, import tools | Express 5, Drizzle ORM on Postgres (Supabase), zod, sharp, pino |
 | `packages/shared` | Types, zod schemas, money/text helpers — the API contract | TypeScript |
 | `apps/showcase` | The original standalone three.js jacket microsite (unchanged) | vanilla ES modules + three.js |
 | `e2e` | Playwright end-to-end + accessibility suites | Playwright, axe-core |
@@ -16,12 +16,12 @@ Start with **[docs/01-audit.md](docs/01-audit.md)** (what exists), **[docs/02-ar
 
 ## Run it locally
 
-Requires Node ≥ 20. No Docker needed — a local MongoDB is started from an npm package.
+Requires Node ≥ 20. No Docker needed — a local Postgres is started from an npm package.
 
 ```bash
 npm install
 cp apps/api/.env.example apps/api/.env      # JWT_SECRET may stay empty in dev
-npm run dev:db -w @cityroyalty/api          # terminal 1 — MongoDB on :27017 (data in apps/api/.data)
+npm run dev:db -w @cityroyalty/api          # terminal 1 — Postgres on :54329 (data in apps/api/.data)
 npm run seed -w @cityroyalty/api -- --demo --images   # terminal 2 — imports the real catalogue + photos (≈10 min) and DEMO stock
 npm run dev:api                             # :4000
 npm run dev:web                             # :3000  storefront
@@ -35,7 +35,7 @@ Without `--images` the import is instant but products have no photos (so none ca
 ```bash
 npm run typecheck      # shared, api, web, admin
 npm run lint           # web + admin (ESLint 9, Next + a11y rules)
-npm test               # shared + API + web unit tests (72, in-memory MongoDB)
+npm test               # shared + API + web unit tests (72, throwaway embedded Postgres)
 npm run test:e2e       # Playwright (46): storefront, checkout/payment edge cases, accounts, admin, SEO, a11y (axe WCAG 2.1 AA)
 ```
 

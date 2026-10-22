@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { eq } from 'drizzle-orm';
 import { IMAGE_SLOTS, slugify, stripHtml, type ImageSlot } from '@cityroyalty/shared';
+import { db } from '../db';
+import { articles, assets, collections, pages, productImages, products, variants } from '../db/schema';
 import { cleanHtml } from '../lib/sanitize';
 import { processImage } from '../lib/images';
 import type { Storage } from '../lib/storage';
 import { logger } from '../logger';
-import { Article, Asset, Collection, Page, Product } from '../models';
+import { refreshProduct } from './products';
 
 interface WooProduct {
   wooId: number;
@@ -43,7 +46,7 @@ const PAGE_MAP: Record<string, { slug: string; title: string }> = {
   faqs: { slug: 'faqs', title: 'Frequently Asked Questions' },
 };
 
-export function variantsFor(p: WooProduct): { options: Record<string, string> }[] {
+export function variantsFor(p: Pick<WooProduct, 'type' | 'attributes' | 'variations'>): { options: Record<string, string> }[] {
   const termBySlug = new Map<string, string>();
   for (const a of p.attributes) for (const t of a.terms) termBySlug.set(`${a.name}:${slugify(t)}`, t);
   // attributes with exactly one term are fixed properties of the product, not choices
@@ -68,7 +71,7 @@ export function variantsFor(p: WooProduct): { options: Record<string, string> }[
   return out;
 }
 
-const materialKey = (title: string) => (/suede/i.test(title) ? 'Suede' : undefined);
+const materialKey = (title: string) => (/suede/i.test(title) ? 'Suede' : null);
 
 export interface ImportOptions {
   dir: string;
@@ -114,17 +117,19 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
   const report: ImportReport = { products: woo.length, created: 0, updated: 0, collections: 0, articles: 0, pages: 0, images: 0, draftReasons: {}, ambiguous: [] };
 
   /* collections */
-  const slugs = new Set(woo.flatMap((p) => p.categories.map((c) => c.slug)));
-  for (const slug of slugs) {
+  for (const slug of new Set(woo.flatMap((p) => p.categories.map((c) => c.slug)))) {
     const meta = COLLECTION_META[slug] ?? { title: slug, parent: null, position: 99 };
-    await Collection.updateOne({ slug }, { $set: { title: meta.title, parent: meta.parent, position: meta.position, active: true }, $setOnInsert: { slug, description: '' } }, { upsert: true });
+    await db()
+      .insert(collections)
+      .values({ slug, title: meta.title, parent: meta.parent, position: meta.position, active: true })
+      .onConflictDoUpdate({ target: collections.slug, set: { title: meta.title, parent: meta.parent, position: meta.position, active: true } });
     report.collections++;
   }
 
   /* products */
   const seenSlugs = new Set<string>();
   for (const w of woo) {
-    const variants = variantsFor(w).map((v, i, all) => ({
+    const vs = variantsFor(w).map((v, i, all) => ({
       sku: all.length === 1 ? w.sku : `${w.sku}-${Object.values(v.options).map((x) => slugify(x).toUpperCase()).join('-')}`.replace(/-$/, `-${i + 1}`),
       options: v.options,
       price: w.price,
@@ -132,46 +137,54 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
       stock: null as number | null, // not exposed by the public Store API → unknown until entered in admin
       madeToOrder: false,
       active: true,
+      position: i,
     }));
-    const optionNames = [...new Set(variants.flatMap((v) => Object.keys(v.options)))];
-    const options = optionNames.map((name) => ({ name, values: [...new Set(variants.map((v) => v.options[name]).filter((x): x is string => Boolean(x)))] }));
-    if (w.type === 'simple' && w.attributes.some((a) => a.terms.length > 1)) report.ambiguous.push(`${w.sku}: simple product lists several ${w.attributes.filter((a) => a.terms.length > 1).map((a) => a.name).join('/')} values but has no variants`);
+    const optionNames = [...new Set(vs.flatMap((v) => Object.keys(v.options)))];
+    const options = optionNames.map((name) => ({ name, values: [...new Set(vs.map((v) => v.options[name]).filter((x): x is string => Boolean(x)))] }));
+    if (w.type === 'simple' && w.attributes.some((a) => a.terms.length > 1))
+      report.ambiguous.push(`${w.sku}: simple product lists several ${w.attributes.filter((a) => a.terms.length > 1).map((a) => a.name).join('/')} values but has no variants`);
     let slug = w.slug;
     if (seenSlugs.has(slug)) slug = `${slug}-${w.wooId}`;
     seenSlugs.add(slug);
-
     const desc = stripHtml(w.description || w.shortDescription || '');
-    const existing = await Product.findOne({ 'provenance.wooId': w.wooId });
-    const doc = existing ?? new Product({ status: 'draft' });
-    doc.title = w.name;
-    doc.slug = existing?.slug ?? slug;
-    doc.sku = w.sku;
-    if (!existing || !existing.description) doc.description = desc;
-    doc.collections = w.categories.map((c) => c.slug) as any;
-    if (!existing) {
-      doc.options = options as any;
-      doc.variants = variants as any;
-    } else {
-      // never overwrite what a human may have edited (stock, price) — only add variants that are new
-      for (const v of variants) if (!doc.variants.some((x) => x.sku === v.sku)) doc.variants.push(v as any);
-    }
-    doc.materialKey = materialKey(w.name);
-    doc.provenance = { source: 'woocommerce', wooId: w.wooId, permalink: w.permalink, importedAt: new Date() } as any;
+    const provenance = { source: 'woocommerce' as const, wooId: w.wooId, permalink: w.permalink, importedAt: new Date().toISOString() };
 
-    if (opts.downloadImages && opts.storage && w.images.length && !doc.images.length) {
+    const [existing] = await db().select().from(products).where(eq(products.wooId, w.wooId));
+    let productId: string;
+    if (!existing) {
+      const [row] = await db()
+        .insert(products)
+        .values({ title: w.name, slug, sku: w.sku, description: desc, collections: w.categories.map((c) => c.slug), options, materialKey: materialKey(w.name), provenance, wooId: w.wooId })
+        .returning();
+      productId = row!.id;
+      await db().insert(variants).values(vs.map((v) => ({ ...v, productId })));
+      report.created++;
+    } else {
+      // never overwrite what a human may have edited (stock, price, description) — only add new variants
+      productId = existing.id;
+      await db()
+        .update(products)
+        .set({ title: w.name, sku: w.sku, collections: w.categories.map((c) => c.slug), materialKey: materialKey(w.name), provenance, ...(existing.description ? {} : { description: desc }) })
+        .where(eq(products.id, productId));
+      const have = new Set((await db().select({ sku: variants.sku }).from(variants).where(eq(variants.productId, productId))).map((v) => v.sku));
+      const fresh = vs.filter((v) => !have.has(v.sku));
+      if (fresh.length) await db().insert(variants).values(fresh.map((v) => ({ ...v, productId })));
+      report.updated++;
+    }
+
+    const hasImages = (await db().select({ id: productImages.id }).from(productImages).where(eq(productImages.productId, productId)).limit(1)).length > 0;
+    if (opts.downloadImages && opts.storage && w.images.length && !hasImages) {
       let n = 0;
       for (const img of w.images) {
         try {
           const buf = await download(img.src, opts.cacheDir ?? '.cache/woo-images', fetchImpl);
           const out = await processImage(buf, opts.storage);
-          await Asset.updateOne(
-            { key: out.key },
-            { $set: { key: out.key, originalName: path.basename(new URL(img.src).pathname), sourceUrl: img.src, width: out.width, height: out.height, bytes: out.bytes, src: out.src, avif: out.avif, webp: out.webp, blur: out.blur } },
-            { upsert: true },
-          );
-          const asset = await Asset.findOne({ key: out.key });
+          const values = { key: out.key, originalName: path.basename(new URL(img.src).pathname), sourceUrl: img.src, width: out.width, height: out.height, bytes: out.bytes, src: out.src, avif: out.avif, webp: out.webp, blur: out.blur };
+          const [asset] = await db().insert(assets).values(values).onConflictDoUpdate({ target: assets.key, set: values }).returning();
           const slot: ImageSlot = IMAGE_SLOTS[n] ?? 'detail';
-          doc.images.push({ slot, kind: 'photo', assetId: asset!._id, alt: `${w.name} — photo ${n + 1}`, position: n, width: out.width, height: out.height, src: out.src, avif: out.avif, webp: out.webp, blur: out.blur } as any);
+          await db()
+            .insert(productImages)
+            .values({ productId, slot, kind: 'photo', assetId: asset!.id, alt: `${w.name} — photo ${n + 1}`, position: n, width: out.width, height: out.height, src: out.src, avif: out.avif, webp: out.webp, blur: out.blur });
           n++;
           report.images++;
         } catch (err) {
@@ -179,32 +192,27 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
         }
       }
     }
-    await doc.save();
+
+    const p = (await refreshProduct(productId))!;
     // promote only when nothing blocks it; a human publishes
-    if (doc.status === 'draft' && !doc.blockers.length) {
-      doc.status = 'review';
-      await doc.save();
-    }
-    for (const b of doc.blockers) report.draftReasons[b] = (report.draftReasons[b] ?? 0) + 1;
-    existing ? report.updated++ : report.created++;
+    if (p.status === 'draft' && !p.blockers.length) await db().update(products).set({ status: 'review' }).where(eq(products.id, productId));
+    for (const b of p.blockers) report.draftReasons[b] = (report.draftReasons[b] ?? 0) + 1;
   }
 
   /* journal + information pages */
   try {
     const posts = await read<{ id: number; slug: string; date: string; title: { rendered: string }; excerpt: { rendered: string }; content: { rendered: string } }[]>('posts.json');
     for (const p of posts) {
-      await Article.updateOne(
-        { slug: p.slug },
-        { $set: { title: stripHtml(p.title.rendered), excerpt: stripHtml(p.excerpt.rendered).slice(0, 280), body: cleanHtml(p.content.rendered), status: 'published', wooId: p.id }, $setOnInsert: { slug: p.slug, publishedAt: new Date(p.date) } },
-        { upsert: true },
-      );
+      const values = { title: stripHtml(p.title.rendered), excerpt: stripHtml(p.excerpt.rendered).slice(0, 280), body: cleanHtml(p.content.rendered), status: 'published', wooId: p.id };
+      await db().insert(articles).values({ ...values, slug: p.slug, publishedAt: new Date(p.date) }).onConflictDoUpdate({ target: articles.slug, set: values });
       report.articles++;
     }
-    const pages = await read<{ id: number; slug: string; title: { rendered: string }; content: { rendered: string } }[]>('pages.json');
-    for (const pg of pages) {
-      const map = PAGE_MAP[pg.slug];
+    const pg = await read<{ id: number; slug: string; title: { rendered: string }; content: { rendered: string } }[]>('pages.json');
+    for (const x of pg) {
+      const map = PAGE_MAP[x.slug];
       if (!map) continue;
-      await Page.updateOne({ slug: map.slug }, { $set: { title: map.title, body: cleanHtml(pg.content.rendered), status: 'published', wooId: pg.id }, $setOnInsert: { slug: map.slug } }, { upsert: true });
+      const values = { title: map.title, body: cleanHtml(x.content.rendered), status: 'published', wooId: x.id };
+      await db().insert(pages).values({ ...values, slug: map.slug }).onConflictDoUpdate({ target: pages.slug, set: values });
       report.pages++;
     }
   } catch (err) {
