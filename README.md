@@ -35,8 +35,8 @@ Without `--images` the import is instant but products have no photos (so none ca
 ```bash
 npm run typecheck      # shared, api, web, admin
 npm run lint           # web + admin (ESLint 9, Next + a11y rules)
-npm test               # shared + API (60+ tests, in-memory MongoDB)
-npm run test:e2e       # Playwright: storefront, checkout/payment edge cases, accounts, admin, SEO, a11y (axe WCAG 2.1 AA)
+npm test               # shared + API + web unit tests (72, in-memory MongoDB)
+npm run test:e2e       # Playwright (46): storefront, checkout/payment edge cases, accounts, admin, SEO, a11y (axe WCAG 2.1 AA)
 ```
 
 ## What is real, and what is not
@@ -60,7 +60,7 @@ API: ≈70 endpoints under `/api/v1`; atomic stock reservation (no overselling),
 * Staff **MFA** and **email verification** are not implemented.
 * Customer/order **import** is documented but not run (no private data was supplied).
 * Razorpay/Stripe/SMTP/S3 need real credentials; GST invoicing and carrier integrations are out of scope.
-* Lighthouse numbers must be measured on the deployed staging build (see launch checklist).
+* Mobile Lighthouse performance is 74–94 locally (accessibility, best practices and SEO are 100) — see [docs/08-qa-report.md](docs/08-qa-report.md); re-measure on staging behind the CDN.
 * Reviews/ratings UI is intentionally absent until verified reviews exist.
 
 ## Licence & credits
