@@ -41,7 +41,10 @@ export async function up() {
   const nextEnv = { ...env, NODE_ENV: 'production' }; // Next must build/run as production
   for (const app of ['web', 'admin']) {
     // always rebuild by default: prerendered pages embed product ids from the DB they were built against
-    if (!existsSync(path.join(root, `apps/${app}/.next-e2e/BUILD_ID`)) || !process.env.E2E_SKIP_BUILD) await run('npx', ['next', 'build'], { cwd: path.join(root, `apps/${app}`), env: nextEnv });
+    const dist = path.join(root, `apps/${app}/.next-e2e`);
+    // the build's fetch cache would otherwise replay product ids from a previous run's database
+    if (!process.env.E2E_SKIP_BUILD) rmSync(dist, { recursive: true, force: true });
+    if (!existsSync(path.join(dist, 'BUILD_ID'))) await run('npx', ['next', 'build'], { cwd: path.join(root, `apps/${app}`), env: nextEnv });
     children.push(spawn('npx', ['next', 'start', '-p', String(PORTS[app])], { cwd: path.join(root, `apps/${app}`), env: nextEnv, stdio: 'inherit', detached: true }));
   }
   await waitFor(`http://localhost:${PORTS.web}/`, 'web');

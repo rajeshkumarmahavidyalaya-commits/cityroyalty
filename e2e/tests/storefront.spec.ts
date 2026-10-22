@@ -41,7 +41,7 @@ test.describe('storefront', () => {
     await page.waitForLoadState('networkidle');
     expect(await count()).toBeLessThanOrEqual(all);
     await page.goto('/collections/mens-jacket?sort=price-desc');
-    const first = await page.locator('article h3').first().innerText();
+    const first = await page.locator('article h2').first().innerText();
     expect(first.length).toBeGreaterThan(3);
     await page.goto('/collections/mens-jacket?inStock=true&minPrice=99999999');
     await expect(page.getByText('Nothing matches those filters')).toBeVisible();
