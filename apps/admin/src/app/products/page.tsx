@@ -35,7 +35,7 @@ function Inner() {
           <Table head={['', 'Product', 'Status', 'Price', 'Stock', 'Blockers', 'Updated']}>
             {data.items.map((p) => (
               <tr key={p.id} className="hover:bg-ivory/60">
-                <td className="td w-14">{p.image ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.image} alt="" className="h-14 w-11 object-cover" loading="lazy" /> : <div className="h-14 w-11 bg-line" />}</td>
+                <td className="td w-14">{p.image ? <img src={p.image} alt="" className="h-14 w-11 object-cover" loading="lazy" /> : <div className="h-14 w-11 bg-line" />}</td>
                 <td className="td"><Link className="font-medium underline-offset-2 hover:underline" href={`/products/${p.id}`}>{p.title}</Link><p className="text-xs text-muted">{p.sku} · {p.variants} variant{p.variants === 1 ? '' : 's'}</p></td>
                 <td className="td"><Badge value={p.status} /></td>
                 <td className="td">{p.priceFrom ? money(p.priceFrom) : <span className="text-danger">missing</span>}</td>

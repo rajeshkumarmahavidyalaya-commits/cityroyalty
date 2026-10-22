@@ -184,7 +184,7 @@ function Images({ product: p, onUpload, onChange, busy, setMsg }: { product: Pro
       <ul className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-5">
         {p.images.map((im) => (
           <li key={im.id} className="space-y-2 border border-line p-2 text-xs">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            
             <img src={im.src} alt={im.alt} className="aspect-[4/5] w-full bg-line object-cover" loading="lazy" />
             <div className="flex items-center justify-between"><Badge value={im.kind} /><span className="text-muted">{im.slot}</span></div>
             <label className="sr-only" htmlFor={`alt-${im.id}`}>Alt text</label>

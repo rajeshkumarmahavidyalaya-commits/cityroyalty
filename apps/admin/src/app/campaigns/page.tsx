@@ -32,7 +32,7 @@ export default function Campaigns() {
           <Field label="Button label" id={`${key}l`}><input id={`${key}l`} className="field" value={f.ctaLabel} onChange={(e) => set({ ctaLabel: e.target.value })} /></Field>
           <Field label="Button link" id={`${key}u`}><input id={`${key}u`} className="field" value={f.ctaHref} onChange={(e) => set({ ctaHref: e.target.value })} placeholder="/collections/mens-jacket" /></Field>
           {key !== 'announcement' && (<>
-            <Field label="Image" id={`${key}i`}><input id={`${key}i`} type="file" accept="image/*" className="field" onChange={(e) => e.target.files?.[0] && upload(key, e.target.files[0])} />{f.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={f.image} alt={f.imageAlt} className="mt-2 h-32 object-cover" />}</Field>
+            <Field label="Image" id={`${key}i`}><input id={`${key}i`} type="file" accept="image/*" className="field" onChange={(e) => e.target.files?.[0] && upload(key, e.target.files[0])} />{f.image && <img src={f.image} alt={f.imageAlt} className="mt-2 h-32 object-cover" />}</Field>
             <Field label="Image alt text" id={`${key}a`}><input id={`${key}a`} className="field" value={f.imageAlt} onChange={(e) => set({ imageAlt: e.target.value })} /></Field>
           </>)}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.active} onChange={(e) => set({ active: e.target.checked })} /> Active</label>

@@ -7,7 +7,7 @@ export default defineConfig([
   ...next,
   ...coreWebVitals,
   ...typescript,
-  globalIgnores(['**/.next/**', '**/.next-e2e/**', '**/dist/**', '**/node_modules/**', 'apps/showcase/**', 'apps/web/src/three/**', 'apps/api/**', 'packages/**', 'e2e/**']),
+  globalIgnores(['**/.next/**', '**/.next-*/**', '**/dist/**', '**/node_modules/**', 'apps/showcase/**', 'apps/web/src/three/**', 'apps/api/**', 'packages/**', 'e2e/**']),
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
@@ -16,5 +16,10 @@ export default defineConfig([
       // Client-only hydration from localStorage / cookies and fetch-on-mount legitimately set state in effects.
       'react-hooks/set-state-in-effect': 'off',
     },
+  },
+  {
+    // admin thumbnails are already-optimised CDN renditions behind auth; next/image adds nothing there
+    files: ['apps/admin/**'],
+    rules: { '@next/next/no-img-element': 'off' },
   },
 ]);
