@@ -49,7 +49,13 @@ export function Hero3D({ poster }: { poster: ImageDTO | null }) {
     let gl = false;
     try {
       const c = document.createElement('canvas');
-      gl = !!(c.getContext('webgl2') || c.getContext('webgl'));
+      const ctx = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
+      gl = !!ctx;
+      // Software rasterisers (SwiftShader/llvmpipe, e.g. headless or GPU-less machines) cannot sustain a 3D scene:
+      // show the static hero there instead of freezing the page. NEXT_PUBLIC_FORCE_3D=1 overrides (used by e2e).
+      const info = ctx?.getExtension('WEBGL_debug_renderer_info');
+      const renderer = info ? String(ctx!.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+      if (gl && process.env.NEXT_PUBLIC_FORCE_3D !== '1' && /swiftshader|llvmpipe|software/i.test(renderer)) gl = false;
     } catch {
       gl = false;
     }

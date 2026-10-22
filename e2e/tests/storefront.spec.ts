@@ -16,15 +16,17 @@ test.describe('storefront', () => {
     expect(errors).toEqual([]);
   });
 
-  test('3D hero renders a canvas (or falls back) without console errors', async ({ page, isMobile }) => {
+  test('3D hero renders a canvas (or falls back) without page errors or failing assets', async ({ page, isMobile }) => {
     const errors: string[] = [];
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    // 5xx responses for anything except speculative router prefetches (_rsc), which the browser may abort/retry
+    page.on('response', (r) => r.status() >= 500 && !r.url().includes('_rsc=') && errors.push(`${r.status()} ${r.url()}`));
     await page.goto('/');
     await expect(page.locator('canvas')).toBeVisible({ timeout: 20_000 });
     await expect.poll(async () => page.locator('canvas').evaluate((c) => getComputedStyle(c).opacity), { timeout: 30_000 }).toBe('1');
     await page.mouse.wheel(0, isMobile ? 1200 : 1500);
     await expect(page.getByText('Details that work hard.')).toBeVisible();
-    expect(errors.filter((e) => !/favicon/.test(e))).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
   test('collection: filter by size, in-stock, sort and clear', async ({ page }) => {

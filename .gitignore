@@ -16,3 +16,4 @@ playwright-report/
 .cache/
 .next-e2e/
 next-env.d.ts
+.next-lh/

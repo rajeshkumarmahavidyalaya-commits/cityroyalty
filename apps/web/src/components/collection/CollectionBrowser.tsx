@@ -93,7 +93,7 @@ export function CollectionBrowser({ initial, facets, params, apiQuery }: { initi
           ) : (
             <ul className={view === 'grid' ? 'grid grid-cols-2 gap-x-4 gap-y-10 md:gap-x-6 xl:grid-cols-3' : 'space-y-8'}>
               {items.map((p, i) => (
-                <li key={p.id}><ProductCard product={p} priority={i < 4} layout={view} /></li>
+                <li key={p.id}><ProductCard product={p} priority={i < 4} layout={view} headingLevel={2} /></li>
               ))}
             </ul>
           )}

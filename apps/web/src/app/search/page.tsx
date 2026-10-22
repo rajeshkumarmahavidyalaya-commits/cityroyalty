@@ -31,7 +31,7 @@ export default async function SearchPage({ searchParams }: Props) {
             </div>
           ) : (
             <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4">
-              {res.items.map((p, i) => (<li key={p.id}><ProductCard product={p} priority={i < 4} /></li>))}
+              {res.items.map((p, i) => (<li key={p.id}><ProductCard product={p} priority={i < 4} headingLevel={2} /></li>))}
             </ul>
           )}
           {res.pages > 1 && (

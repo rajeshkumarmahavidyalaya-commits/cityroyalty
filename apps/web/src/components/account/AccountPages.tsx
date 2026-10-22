@@ -156,7 +156,7 @@ export function WishlistPage() {
   if (!items) return <div className="skeleton h-40" />;
   const shown = items.filter((p) => ids.includes(p.id));
   return shown.length ? (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-3">{shown.map((p) => <li key={p.id}><ProductCard product={p} quickView={false} /></li>)}</ul>
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-3">{shown.map((p) => <li key={p.id}><ProductCard product={p} quickView={false} headingLevel={2} /></li>)}</ul>
   ) : (<p className="text-muted">Tap the heart on any piece to save it here. <Link className="underline underline-offset-4" href="/collections/all">Browse the collection</Link></p>);
 }
 

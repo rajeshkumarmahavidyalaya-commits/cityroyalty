@@ -14,15 +14,19 @@ interface Props {
   priority?: boolean;
   layout?: 'grid' | 'list';
   quickView?: boolean;
+  /** heading level for the product title; use 2 under an h1 list, 3 under an h2 section */
+  headingLevel?: 2 | 3;
 }
 
-export function ProductCard({ product: p, sizes = '(min-width:1280px) 22vw, (min-width:768px) 30vw, 48vw', priority, layout = 'grid', quickView = true }: Props) {
+export function ProductCard({ product: p, sizes = '(min-width:1280px) 22vw, (min-width:768px) 30vw, 48vw', priority, layout = 'grid', quickView = true, headingLevel = 3 }: Props) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const [qv, setQv] = useState(false);
   const off = percentOff(p.priceFrom, p.compareAtFrom);
   const list = layout === 'list';
   return (
     <article className={`group relative ${list ? 'grid grid-cols-[38%_1fr] items-center gap-6 sm:grid-cols-[22%_1fr]' : ''}`}>
-      <Link href={`/products/${p.slug}`} className="block" aria-label={p.title}>
+      {/* decorative duplicate of the title link below: hidden from AT and the tab order */}
+      <Link href={`/products/${p.slug}`} className="block" aria-hidden tabIndex={-1}>
         <div className="relative overflow-hidden bg-line">
           {p.image ? (
             <>
@@ -51,9 +55,9 @@ export function ProductCard({ product: p, sizes = '(min-width:1280px) 22vw, (min
         </button>
       )}
       <div className={list ? '' : 'pt-3'}>
-        <h3 className="font-sans text-[0.95rem] font-normal leading-snug tracking-normal">
+        <Heading className="font-sans text-[0.95rem] font-normal leading-snug tracking-normal">
           <Link href={`/products/${p.slug}`} className="link-u">{p.title}</Link>
-        </h3>
+        </Heading>
         <div className="mt-1.5 flex items-baseline gap-2 text-sm">
           {p.priceFrom > 0 ? (
             <>
