@@ -16,6 +16,23 @@ export interface ProcessedImage {
   blur: string;
 }
 
+/** An image already processed and uploaded elsewhere (see scripts/export-media-manifest.ts). */
+export interface MediaManifestEntry {
+  key: string;
+  width: number;
+  height: number;
+  bytes: number;
+  widths: number[];
+  blur: string;
+}
+
+/** Rebuild the image record for an already-uploaded ladder; URLs come from this environment's storage. */
+export function fromManifest(e: MediaManifestEntry, storage: Storage): ProcessedImage {
+  const avif = e.widths.map((w) => ({ w, url: storage.url(`images/${e.key}/${w}.avif`) }));
+  const webp = e.widths.map((w) => ({ w, url: storage.url(`images/${e.key}/${w}.webp`) }));
+  return { key: e.key, width: e.width, height: e.height, bytes: e.bytes, src: webp[webp.length - 1]!.url, avif, webp, blur: e.blur };
+}
+
 export async function processImage(input: Buffer, storage: Storage): Promise<ProcessedImage> {
   const hash = createHash('sha256').update(input).digest('hex').slice(0, 16);
   const base = sharp(input, { failOn: 'error' }).rotate(); // honour EXIF orientation

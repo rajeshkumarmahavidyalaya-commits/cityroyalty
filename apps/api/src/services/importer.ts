@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { IMAGE_SLOTS, slugify, stripHtml, type ImageSlot } from '@cityroyalty/shared';
 import { db } from '../db';
 import { articles, assets, collections, pages, productImages, products, variants } from '../db/schema';
 import { cleanHtml } from '../lib/sanitize';
-import { processImage } from '../lib/images';
+import { fromManifest, processImage, type MediaManifestEntry } from '../lib/images';
 import type { Storage } from '../lib/storage';
 import { logger } from '../logger';
 import { refreshProduct } from './products';
@@ -77,6 +79,8 @@ export interface ImportOptions {
   dir: string;
   storage?: Storage;
   downloadImages?: boolean;
+  /** Woo image URL → an image already uploaded to `storage`; used instead of downloading and re-encoding. */
+  mediaManifest?: Record<string, MediaManifestEntry>;
   limit?: number;
   cacheDir?: string;
   fetchImpl?: typeof fetch;
@@ -107,6 +111,21 @@ async function download(url: string, cacheDir: string, fetchImpl: typeof fetch):
   const buf = Buffer.from(await res.arrayBuffer());
   await writeFile(file, buf);
   return buf;
+}
+
+/** The snapshot shipped with the API (works from src/, the dist/ bundle and a Vercel Function). */
+export function snapshotDir() {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [path.join(here, '../../data/woo-snapshot'), path.join(here, '../data/woo-snapshot'), path.join(process.cwd(), 'data/woo-snapshot'), path.join(process.cwd(), 'apps/api/data/woo-snapshot')];
+  const dir = candidates.find((c) => existsSync(path.join(c, 'products.json')));
+  if (!dir) throw new Error('WooCommerce snapshot not found');
+  return dir;
+}
+
+/** The pre-processed media manifest next to the snapshot, if one was exported. */
+export async function loadMediaManifest(dir: string): Promise<Record<string, MediaManifestEntry> | undefined> {
+  const file = path.join(dir, 'media-manifest.json');
+  return existsSync(file) ? (JSON.parse(await readFile(file, 'utf8')) as Record<string, MediaManifestEntry>) : undefined;
 }
 
 export async function importWooSnapshot(opts: ImportOptions): Promise<ImportReport> {
@@ -173,12 +192,13 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
     }
 
     const hasImages = (await db().select({ id: productImages.id }).from(productImages).where(eq(productImages.productId, productId)).limit(1)).length > 0;
-    if (opts.downloadImages && opts.storage && w.images.length && !hasImages) {
+    if ((opts.downloadImages || opts.mediaManifest) && opts.storage && w.images.length && !hasImages) {
       let n = 0;
       for (const img of w.images) {
         try {
-          const buf = await download(img.src, opts.cacheDir ?? '.cache/woo-images', fetchImpl);
-          const out = await processImage(buf, opts.storage);
+          const pre = opts.mediaManifest?.[img.src];
+          if (!pre && !opts.downloadImages) continue;
+          const out = pre ? fromManifest(pre, opts.storage) : await processImage(await download(img.src, opts.cacheDir ?? '.cache/woo-images', fetchImpl), opts.storage);
           const values = { key: out.key, originalName: path.basename(new URL(img.src).pathname), sourceUrl: img.src, width: out.width, height: out.height, bytes: out.bytes, src: out.src, avif: out.avif, webp: out.webp, blur: out.blur };
           const [asset] = await db().insert(assets).values(values).onConflictDoUpdate({ target: assets.key, set: values }).returning();
           const slot: ImageSlot = IMAGE_SLOTS[n] ?? 'detail';

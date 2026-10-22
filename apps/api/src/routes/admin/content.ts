@@ -12,6 +12,7 @@ import { badRequest, conflict, notFound } from '../../lib/errors';
 import { idParam, parse, wrap } from '../../lib/http';
 import { processImage } from '../../lib/images';
 import { cleanHtml } from '../../lib/sanitize';
+import { importWooSnapshot, loadMediaManifest, snapshotDir } from '../../services/importer';
 import { getSettings, saveSettings } from '../../lib/settings';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
@@ -22,6 +23,15 @@ export function adminContentRoutes({ storage, revalidate }: Deps) {
   const editor = requireRole('content', 'manager', 'admin');
   const mgr = requireRole('manager', 'admin');
   const admin = requireRole('admin');
+
+  /* ---------- WooCommerce snapshot import (the snapshot bundled with this release; products land as drafts) ---------- */
+  r.post('/import/woo', admin, wrap(async (req, res) => {
+    const dir = snapshotDir();
+    const report = await importWooSnapshot({ dir, storage, mediaManifest: await loadMediaManifest(dir), log: () => {} });
+    await audit(req, 'catalogue.import', 'import', 'woo', `Imported ${report.products} products (${report.created} new, ${report.images} images)`);
+    void revalidate('products', 'collections');
+    res.json({ ...report, ambiguous: report.ambiguous.length });
+  }));
 
   /* ---------- generic image upload (hero/editorial/article/collection art) ---------- */
   r.post('/uploads', editor, upload.single('file'), wrap(async (req, res) => {

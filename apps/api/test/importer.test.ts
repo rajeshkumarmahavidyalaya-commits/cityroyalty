@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db';
-import { collections, pages, products, variants } from '../src/db/schema';
+import { auditLogs, collections, pages, productImages, products, variants } from '../src/db/schema';
 import { importWooSnapshot, variantsFor } from '../src/services/importer';
-import { count, productBy, startTestApp } from './helpers';
+import { count, productBy, sessionFor, startTestApp } from './helpers';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../data/woo-snapshot');
 let t: Awaited<ReturnType<typeof startTestApp>>;
@@ -78,5 +78,32 @@ describe('WooCommerce snapshot importer', () => {
       variations: [{ wooId: 1, attributes: { Size: 'm-44' } }, { wooId: 2, attributes: { Size: 'l-46' } }, { wooId: 3, attributes: { Size: 'l-46' } }],
     } as never);
     expect(v).toEqual([{ options: { Color: 'Black', Size: 'M-44' } }, { options: { Color: 'Black', Size: 'L-46' } }]);
+  });
+
+  it('attaches already-uploaded photos from a media manifest without downloading anything', async () => {
+    const products_ = JSON.parse(await (await import('node:fs/promises')).readFile(path.join(dir, 'products.json'), 'utf8')) as { sku: string; images: { src: string }[] }[];
+    const biker = products_.find((p) => p.sku === 'BIKBRNJK4')!;
+    // first occurrence wins: the Woo data repeats some URLs within a product
+    const manifest = Object.fromEntries(biker.images.map((img, i) => [img.src, { key: `k${i}`, width: 1200, height: 1500, bytes: 1, widths: [640, 1200], blur: 'data:image/webp;base64,AA' }]).reverse());
+    const storage = { put: async () => { throw new Error('must not upload'); }, url: (k: string) => `https://cdn.test/${k}` };
+    const fetchImpl = (async () => { throw new Error('must not download'); }) as unknown as typeof fetch;
+    const report = await importWooSnapshot({ dir, storage, mediaManifest: manifest, fetchImpl, log: () => {} });
+    expect(report.images).toBe(biker.images.length);
+    const p = (await productBy('sku', 'BIKBRNJK4'))!;
+    expect(p.images[0]!.webp).toEqual([{ w: 640, url: 'https://cdn.test/images/k0/640.webp' }, { w: 1200, url: 'https://cdn.test/images/k0/1200.webp' }]);
+    expect(p.images[0]!.src).toBe('https://cdn.test/images/k0/1200.webp');
+    expect(p.blockers).not.toContain('No product photograph');
+  });
+
+  it('lets only admins run the bundled snapshot import, and audits it', async () => {
+    const mgr = await sessionFor(t.app, 'manager');
+    expect((await mgr.post('/api/v1/admin/import/woo', {})).status).toBe(403);
+    const admin = await sessionFor(t.app, 'admin');
+    const res = await admin.post('/api/v1/admin/import/woo', {});
+    expect(res.status).toBe(200);
+    expect(res.body.products).toBe(109);
+    expect(await count(products, eq(products.status, 'published'))).toBe(0);
+    expect(await count(auditLogs, eq(auditLogs.action, 'catalogue.import'))).toBe(1);
+    void productImages;
   });
 });
