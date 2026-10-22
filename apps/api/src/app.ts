@@ -6,8 +6,10 @@ import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import type { Config } from './config';
+import { db } from './db';
 import { csrfGuard, loadUser, requireRole } from './lib/auth';
 import { HttpError } from './lib/errors';
 import { createMailer, type Mailer } from './lib/mailer';
@@ -74,6 +76,14 @@ export function createApp(deps: Deps) {
   app.use(rateLimitGlobal(config));
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.get('/health/db', async (_req, res) => {
+    try {
+      await db().execute(sql`select 1`);
+      res.json({ ok: true });
+    } catch {
+      res.status(503).json({ ok: false });
+    }
+  });
 
   if (config.STORAGE_DRIVER === 'local') {
     app.use('/media', express.static(path.resolve(config.STORAGE_LOCAL_DIR), { immutable: true, maxAge: '365d', index: false, fallthrough: false }));

@@ -22,15 +22,21 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'min(30re
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const returnTo = useRef<HTMLElement | null>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  // callers pass inline handlers; keep the latest without re-running the focus effect on every render
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
     returnTo.current = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const t = setTimeout(() => ref.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus() ?? ref.current?.focus(), 30);
+    const t = setTimeout(() => (ref.current?.querySelector<HTMLElement>('[data-autofocus]') ?? closeBtn.current ?? ref.current)?.focus(), 30);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose();
+      if (e.key === 'Escape') return close.current();
       if (e.key !== 'Tab' || !ref.current) return;
       const els = [...ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
       if (!els.length) return;
@@ -50,7 +56,7 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'min(30re
       document.removeEventListener('keydown', onKey);
       returnTo.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   const from = side === 'right' ? { x: '100%' } : side === 'left' ? { x: '-100%' } : side === 'center' ? { opacity: 0, y: 24 } : { y: '-100%' };
   const pos = side === 'right' ? 'right-0 top-0 h-dvh' : side === 'left' ? 'left-0 top-0 h-dvh' : side === 'center' ? 'left-1/2 top-1/2 max-h-[92dvh] -translate-x-1/2 -translate-y-1/2' : 'left-0 right-0 top-0 max-h-dvh';
@@ -83,7 +89,7 @@ export function Drawer({ open, onClose, title, side = 'right', width = 'min(30re
           >
             <div className={`flex items-center justify-between border-b border-line px-5 py-4 ${hideTitle ? 'sr-only' : ''}`}>
               <h2 id={titleId} className="font-serif text-2xl">{title}</h2>
-              <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 p-2" data-autofocus>
+              <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="-mr-2 p-2">
                 <CloseIcon />
               </button>
             </div>

@@ -15,10 +15,13 @@ import { refreshProduct } from '../src/services/products';
  *   npm run seed -w @cityroyalty/api               → settings + imported catalogue (all drafts)
  *   npm run seed -w @cityroyalty/api -- --demo     → ALSO fills demo stock, publishes products that have photos,
  *                                                    creates demo accounts and a sample discount.
- * --demo invents stock levels and a test password, so it is refused in production.
+ *   npm run seed -w @cityroyalty/api -- --preview  → like --demo for a public preview deployment: placeholder stock and a
+ *                                                    "preview" banner, but NO demo accounts (their passwords are public).
+ * --demo/--preview invent stock levels, so they are refused in production.
  */
 const config = loadConfig();
-const demo = process.argv.includes('--demo');
+const preview = process.argv.includes('--preview');
+const demo = preview || process.argv.includes('--demo');
 const images = process.argv.includes('--images');
 if (demo && config.isProd) throw new Error('--demo is not allowed in production');
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -46,13 +49,16 @@ if (demo) {
       n++;
     }
   }
-  await db().insert(discounts).values({ code: 'WELCOME10', type: 'percent', value: 10, minSubtotal: 0, active: true }).onConflictDoUpdate({ target: discounts.code, set: { type: 'percent', value: 10, minSubtotal: 0, active: true } });
-  const banner = { headline: 'Free shipping on orders over ₹600', ctaHref: '/collections/all', ctaLabel: 'Shop now', active: true };
+  if (!preview) await db().insert(discounts).values({ code: 'WELCOME10', type: 'percent', value: 10, minSubtotal: 0, active: true }).onConflictDoUpdate({ target: discounts.code, set: { type: 'percent', value: 10, minSubtotal: 0, active: true } });
+  const banner = preview
+    ? { headline: 'Preview site — stock levels are placeholders and orders are not being taken yet', ctaHref: '/collections/all', ctaLabel: 'Browse', active: true }
+    : { headline: 'Free shipping on orders over ₹600', ctaHref: '/collections/all', ctaLabel: 'Shop now', active: true };
   await db().insert(campaigns).values({ key: 'announcement', ...banner }).onConflictDoUpdate({ target: campaigns.key, set: banner });
-  for (const [email, name, role, pw] of [['admin@cityroyalty.test', 'Demo Admin', 'admin', 'Demo-admin-1234'], ['customer@cityroyalty.test', 'Demo Customer', 'customer', 'Demo-customer-1234']] as const) {
+  for (const [email, name, role, pw] of preview ? [] : [['admin@cityroyalty.test', 'Demo Admin', 'admin', 'Demo-admin-1234'], ['customer@cityroyalty.test', 'Demo Customer', 'customer', 'Demo-customer-1234']] as const) {
     const passwordHash = await hashPassword(pw);
     await db().insert(users).values({ email, name, role, passwordHash }).onConflictDoUpdate({ target: users.email, set: { name, role, passwordHash } });
   }
-  console.log(`DEMO data: ${n} products published with demo stock=12; admin@cityroyalty.test / Demo-admin-1234; coupon WELCOME10. NEVER use in production.`);
+  if (preview) console.log(`PREVIEW data: ${n} products published with placeholder stock=12; no accounts created.`);
+  else console.log(`DEMO data: ${n} products published with demo stock=12; admin@cityroyalty.test / Demo-admin-1234; coupon WELCOME10. NEVER use in production.`);
 }
 await disconnectDb();

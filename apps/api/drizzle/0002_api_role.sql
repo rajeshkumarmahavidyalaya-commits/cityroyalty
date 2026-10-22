@@ -20,7 +20,8 @@ DECLARE t record;
 BEGIN
   FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'cr' AND tablename <> '__drizzle_migrations' LOOP
     EXECUTE format('ALTER TABLE cr.%I ENABLE ROW LEVEL SECURITY', t.tablename);
-    EXECUTE format('DROP POLICY IF EXISTS api_all ON cr.%I', t.tablename);
-    EXECUTE format('CREATE POLICY api_all ON cr.%I FOR ALL TO cr_api USING (true) WITH CHECK (true)', t.tablename);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'cr' AND tablename = t.tablename AND policyname = 'api_all') THEN
+      EXECUTE format('CREATE POLICY api_all ON cr.%I FOR ALL TO cr_api USING (true) WITH CHECK (true)', t.tablename);
+    END IF;
   END LOOP;
 END $$;

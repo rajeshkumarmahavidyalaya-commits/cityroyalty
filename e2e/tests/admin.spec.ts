@@ -31,7 +31,7 @@ test.describe('admin', () => {
     await page.getByLabel('Price in rupees', { exact: true }).fill('4999');
     await page.getByRole('checkbox', { name: 'Leather Bags' }).check();
     await page.getByRole('button', { name: 'Save changes' }).click();
-    await expect(page).toHaveURL(/\/products\/[a-f0-9]{24}$/);
+    await expect(page).toHaveURL(/\/products\/[0-9a-f]{8}-[0-9a-f-]{27}$/);
     await expect(page.getByText('No product photograph')).toBeVisible();
     await expect(page.getByText('Stock not entered')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Send to review' })).toBeDisabled();

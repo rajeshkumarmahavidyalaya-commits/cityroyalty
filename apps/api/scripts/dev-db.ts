@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import EmbeddedPostgres from 'embedded-postgres';
 import postgres from 'postgres';
 
-const databaseDir = '.data/postgres';
+const databaseDir = process.env.PG_DATA_DIR ?? '.data/postgres'; // override when running as root (initdb drops to an unprivileged user)
 const fresh = !existsSync(databaseDir);
 const pg = new EmbeddedPostgres({ databaseDir, user: 'postgres', password: 'postgres', port: 54329, persistent: true });
 if (fresh) await pg.initialise();
