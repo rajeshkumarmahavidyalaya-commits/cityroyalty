@@ -9,7 +9,7 @@ export function ProductView({ product, sizeGuideHtml, details, eyebrow }: { prod
   const [colour, setColour] = useState<string | undefined>();
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-16">
-      <Gallery images={product.images} title={product.title} activeColour={colour} />
+      <Gallery images={product.images} styling={product.styling} title={product.title} activeColour={colour} />
       <div className="lg:sticky lg:top-28 lg:self-start">
         {eyebrow}
         <h1 className="mt-2 text-[2rem] leading-tight md:text-5xl">{product.title}</h1>

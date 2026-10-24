@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation';
 import { Accordion } from '@/components/ui/Accordion';
 import { ProductCard } from '@/components/product/ProductCard';
 import { ProductView } from '@/components/product/ProductView';
-import { ResponsiveImage } from '@/components/ui/ResponsiveImage';
 import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/env';
 import { formatMoney } from '@/lib/format';
@@ -128,21 +127,6 @@ export default async function ProductPage({ params }: Props) {
           eyebrow={<p className="eyebrow text-tan">City Royalty</p>}
         />
       </div>
-
-      {p.styling?.length > 0 && (
-        <section className="section-y border-t border-line" aria-labelledby="styled">
-          <div className="container-x">
-            <p className="eyebrow text-tan">Inspiration</p>
-            <h2 id="styled" className="mt-3 text-3xl md:text-4xl">Styled look</h2>
-            <p className="mt-3 max-w-xl text-sm text-muted">Styling imagery of a similar look. The piece shown may differ in details — the photographs above show this exact product.</p>
-            <ul className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
-              {p.styling.map((im) => (
-                <li key={im.id}><ResponsiveImage image={im} sizes="(min-width:768px) 22vw, 45vw" ratio="4 / 5" /></li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
 
       {related.length > 0 && (
         <section className="section-y border-t border-line" aria-labelledby="rel">

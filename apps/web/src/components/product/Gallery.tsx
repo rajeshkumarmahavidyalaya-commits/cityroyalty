@@ -1,12 +1,28 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageDTO } from '@cityroyalty/shared';
 import { Drawer } from '../ui/Drawer';
 import { ChevronIcon, ZoomIcon } from '../ui/Icons';
 import { ResponsiveImage } from '../ui/ResponsiveImage';
 
-/** Desktop: thumbnails + large image with click-to-zoom. Mobile: swipeable snap carousel with dots. */
-export function Gallery({ images, title, activeColour }: { images: ImageDTO[]; title: string; activeColour?: string }) {
+const STYLING_LABEL = 'Styling image · similar look';
+const NONE: ImageDTO[] = [];
+/** Tag shown on styling (concept) images so they are never mistaken for photographs of this exact piece. */
+function StylingTag({ small }: { small?: boolean }) {
+  return (
+    <span className={`pointer-events-none absolute left-2 top-2 z-10 bg-ivory/90 text-royal ${small ? 'px-1 py-0.5 text-[0.55rem] tracking-wide' : 'eyebrow px-2.5 py-1.5 !text-[0.65rem]'}`}>
+      {small ? 'Styling' : STYLING_LABEL}
+    </span>
+  );
+}
+
+/**
+ * Desktop: thumbnails + large image with click-to-zoom. Mobile: swipeable snap carousel with dots.
+ * Product photographs always come first; styling images (a similar look, not this exact piece) follow, each tagged.
+ */
+export function Gallery({ images: photos, styling = NONE, title, activeColour }: { images: ImageDTO[]; styling?: ImageDTO[]; title: string; activeColour?: string }) {
+  const images = useMemo(() => (photos.length ? [...photos, ...styling] : photos), [photos, styling]);
+  const isStyling = (n: number) => n >= photos.length;
   const [i, setI] = useState(0);
   const [zoom, setZoom] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -34,7 +50,10 @@ export function Gallery({ images, title, activeColour }: { images: ImageDTO[]; t
           {images.map((im, n) => (
             <li key={im.id}>
               <button type="button" onClick={() => go(n)} aria-label={`Show image ${n + 1} of ${images.length}`} aria-current={i === n} className={`block w-full border transition-opacity ${i === n ? 'border-royal' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                <ResponsiveImage image={im} sizes="88px" ratio="4 / 5" alt="" />
+                <span className="relative block">
+                  <ResponsiveImage image={im} sizes="88px" ratio="4 / 5" alt="" />
+                  {isStyling(n) && <StylingTag small />}
+                </span>
               </button>
             </li>
           ))}
@@ -54,9 +73,10 @@ export function Gallery({ images, title, activeColour }: { images: ImageDTO[]; t
           aria-label={`${title} images`}
         >
           {images.map((im, n) => (
-            <div key={im.id} className="w-full shrink-0 snap-center" role="group" aria-roledescription="slide" aria-label={`${n + 1} of ${images.length}`} hidden={false}>
+            <div key={im.id} className="w-full shrink-0 snap-center" role="group" aria-roledescription="slide" aria-label={`${n + 1} of ${images.length}${isStyling(n) ? `, ${STYLING_LABEL}` : ''}`} hidden={false}>
               <button type="button" onClick={() => { setI(n); setZoom(true); }} className="relative block w-full cursor-zoom-in" aria-label="Zoom image">
-                <ResponsiveImage image={im} sizes="(min-width:1024px) 46vw, 100vw" ratio="4 / 5" priority={n === 0} className={n === i || n === 0 ? '' : ''} />
+                <ResponsiveImage image={im} sizes="(min-width:1024px) 46vw, 100vw" ratio="4 / 5" priority={n === 0} />
+                {isStyling(n) && <StylingTag />}
               </button>
             </div>
           ))}
@@ -76,12 +96,12 @@ export function Gallery({ images, title, activeColour }: { images: ImageDTO[]; t
           </>
         )}
       </div>
-      <Zoom images={images} start={i} open={zoom} onClose={() => setZoom(false)} title={title} />
+      <Zoom images={images} stylingFrom={photos.length} start={i} open={zoom} onClose={() => setZoom(false)} title={title} />
     </div>
   );
 }
 
-function Zoom({ images, start, open, onClose, title }: { images: ImageDTO[]; start: number; open: boolean; onClose: () => void; title: string }) {
+function Zoom({ images, stylingFrom, start, open, onClose, title }: { images: ImageDTO[]; stylingFrom: number; start: number; open: boolean; onClose: () => void; title: string }) {
   const [n, setN] = useState(start);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => { if (open) setN(start); }, [open, start]);
@@ -116,6 +136,7 @@ function Zoom({ images, start, open, onClose, title }: { images: ImageDTO[]; sta
               style={pos ? { transform: 'scale(2)', transformOrigin: `${pos.x}% ${pos.y}%` } : undefined}
               draggable={false}
             />
+            {n >= stylingFrom && <StylingTag />}
           </div>
           {images.length > 1 && (
             <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-4 text-ivory">
