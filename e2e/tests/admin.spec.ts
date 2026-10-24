@@ -58,14 +58,16 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(page.getByText('Status: published')).toBeVisible();
 
-    // storefront (separate anonymous visitor) can now see it — the photograph leads the gallery; the concept image follows
-    // it, tagged as a styling image
+    // storefront (separate anonymous visitor) can now see it — the concept image leads the gallery, tagged as a styling
+    // image; the photograph follows untagged
     const visitor = await (await browser.newContext()).newPage();
     await expect.poll(async () => (await visitor.goto('http://localhost:3100/products/e2e-heritage-satchel'))?.status(), { timeout: 20_000 }).toBe(200);
     await expect(visitor.getByRole('heading', { level: 1 })).toHaveText('E2E Heritage Satchel');
     const gallery = visitor.getByLabel('E2E Heritage Satchel images');
-    await expect(gallery.getByRole('group', { name: '1 of 2', exact: true }).locator('img')).not.toHaveAttribute('alt', 'Concept render');
-    const styledSlide = gallery.getByRole('group', { name: '2 of 2, Styling image · similar look' });
+    const photoSlide = gallery.getByRole('group', { name: '2 of 2', exact: true });
+    await expect(photoSlide.locator('img')).not.toHaveAttribute('alt', 'Concept render');
+    await expect(photoSlide.getByText('Styling image · similar look')).toHaveCount(0);
+    const styledSlide = gallery.getByRole('group', { name: '1 of 2, Styling image · similar look' });
     await expect(styledSlide.locator('img[alt="Concept render"]')).toHaveCount(1);
     await expect(styledSlide.getByText('Styling image · similar look')).toHaveCount(1);
     await expect(visitor.getByText('₹4,999').first()).toBeVisible();

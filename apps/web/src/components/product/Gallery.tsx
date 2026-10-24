@@ -18,11 +18,13 @@ function StylingTag({ small }: { small?: boolean }) {
 
 /**
  * Desktop: thumbnails + large image with click-to-zoom. Mobile: swipeable snap carousel with dots.
- * Product photographs always come first; styling images (a similar look, not this exact piece) follow, each tagged.
+ * Styling images (a similar look, not this exact piece) lead, each tagged; the product photographs follow.
  */
 export function Gallery({ images: photos, styling = NONE, title, activeColour }: { images: ImageDTO[]; styling?: ImageDTO[]; title: string; activeColour?: string }) {
-  const images = useMemo(() => (photos.length ? [...photos, ...styling] : photos), [photos, styling]);
-  const isStyling = (n: number) => n >= photos.length;
+  // styling only ever accompanies real photographs; a product without photos shows the placeholder instead
+  const images = useMemo(() => (photos.length ? [...styling, ...photos] : photos), [photos, styling]);
+  const stylingIds = useMemo(() => new Set(styling.map((s) => s.id)), [styling]);
+  const isStyling = (n: number) => stylingIds.has(images[n]?.id ?? '');
   const [i, setI] = useState(0);
   const [zoom, setZoom] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -96,12 +98,12 @@ export function Gallery({ images: photos, styling = NONE, title, activeColour }:
           </>
         )}
       </div>
-      <Zoom images={images} stylingFrom={photos.length} start={i} open={zoom} onClose={() => setZoom(false)} title={title} />
+      <Zoom images={images} stylingIds={stylingIds} start={i} open={zoom} onClose={() => setZoom(false)} title={title} />
     </div>
   );
 }
 
-function Zoom({ images, stylingFrom, start, open, onClose, title }: { images: ImageDTO[]; stylingFrom: number; start: number; open: boolean; onClose: () => void; title: string }) {
+function Zoom({ images, stylingIds, start, open, onClose, title }: { images: ImageDTO[]; stylingIds: Set<string>; start: number; open: boolean; onClose: () => void; title: string }) {
   const [n, setN] = useState(start);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => { if (open) setN(start); }, [open, start]);
@@ -136,7 +138,7 @@ function Zoom({ images, stylingFrom, start, open, onClose, title }: { images: Im
               style={pos ? { transform: 'scale(2)', transformOrigin: `${pos.x}% ${pos.y}%` } : undefined}
               draggable={false}
             />
-            {n >= stylingFrom && <StylingTag />}
+            {stylingIds.has(im.id) && <StylingTag />}
           </div>
           {images.length > 1 && (
             <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-4 text-ivory">
