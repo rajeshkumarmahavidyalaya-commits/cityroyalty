@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { loadConfig } from '../src/config';
 import { connectDb, db, disconnectDb, runMigrations } from '../src/db';
@@ -7,7 +6,7 @@ import { campaigns, discounts, productImages, products, users, variants } from '
 import { hashPassword } from '../src/lib/auth';
 import { DEFAULT_SETTINGS, saveSettings } from '../src/lib/settings';
 import { createStorage } from '../src/lib/storage';
-import { importWooSnapshot } from '../src/services/importer';
+import { importWooSnapshot, snapshotDir } from '../src/services/importer';
 import { refreshProduct } from '../src/services/products';
 
 /**
@@ -24,16 +23,16 @@ const preview = process.argv.includes('--preview');
 const demo = preview || process.argv.includes('--demo');
 const images = process.argv.includes('--images');
 if (demo && config.isProd) throw new Error('--demo is not allowed in production');
-const here = path.dirname(fileURLToPath(import.meta.url));
+const snapshot = snapshotDir();
 
 connectDb(config.DATABASE_URL, { max: 4 });
 if (process.argv.includes('--migrate')) await runMigrations();
 await saveSettings({ ...DEFAULT_SETTINGS, ...(demo ? { shipping: { ...DEFAULT_SETTINGS.shipping, flatRate: 9900, estimate: 'DEMO: 4–7 working days' } } : {}) });
 const report = await importWooSnapshot({
-  dir: path.join(here, '../data/woo-snapshot'),
+  dir: snapshot,
   storage: images ? createStorage(config) : undefined,
   downloadImages: images,
-  cacheDir: path.join(here, '../.cache/woo-images'),
+  cacheDir: path.join(snapshot, '../../.cache/woo-images'),
   log: (m) => console.log(m),
 });
 console.log(JSON.stringify({ ...report, ambiguous: report.ambiguous.length }, null, 2));
