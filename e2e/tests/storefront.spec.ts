@@ -34,6 +34,15 @@ test.describe('storefront', () => {
     expect(errors).toEqual([]);
   });
 
+  test('no page is wider than the screen (no sideways scroll)', async ({ page }) => {
+    for (const url of ['/', '/collections/mens-jacket', '/products/mens-brown-leather-biker-jacket']) {
+      await page.goto(url);
+      await page.waitForLoadState('networkidle');
+      const { scroll, client } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+      expect(scroll, `${url} overflows horizontally`).toBeLessThanOrEqual(client);
+    }
+  });
+
   test('reduced motion: scroll-reveal content is shown, not left invisible', async ({ browser }) => {
     const page = await (await browser.newContext({ reducedMotion: 'reduce' })).newPage();
     await page.goto('http://localhost:3100/');

@@ -75,7 +75,7 @@ export default async function Home() {
 
       {pieces.length > 0 && (
         <section className="section-y" aria-labelledby="edit">
-          <div className="container-x grid gap-10 lg:grid-cols-[17rem_1fr] lg:gap-14">
+          <div className="container-x grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-14">
             <Reveal>
               <h2 id="edit" className="display-caps text-3xl md:text-4xl">The signature edit</h2>
               <p className="mt-3 text-sm text-muted">Bold silhouettes. Timeless materials.</p>
