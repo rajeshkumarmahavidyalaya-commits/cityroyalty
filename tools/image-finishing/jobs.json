@@ -1,0 +1,124 @@
+[
+ {
+  "src": "images/royale-biker-jacket/05_lifestyle_model.jpg",
+  "out": "place_home_editorial.jpg",
+  "w": 1100,
+  "ratio": 0.8,
+  "anchor": "top"
+ },
+ {
+  "src": "images/royale-biker-jacket/01_front_model.jpg",
+  "out": "place_mens_jacket.jpg",
+  "w": 960,
+  "ratio": 0.8,
+  "anchor": "top"
+ },
+ {
+  "src": "images/nova-leather-jacket/01_front_model.jpg",
+  "out": "place_womens_jacket.jpg",
+  "w": 960,
+  "ratio": 0.8,
+  "anchor": "top"
+ },
+ {
+  "src": "images/nova-leather-jacket/05_lifestyle_model.jpg",
+  "out": "place_jacket.jpg",
+  "w": 960,
+  "ratio": 0.8,
+  "anchor": "top"
+ },
+ {
+  "src": "images/heritage-weekender/01_studio_hero.jpg",
+  "out": "place_leather_bags.jpg",
+  "w": 1100,
+  "ratio": 0.8,
+  "hue": -0.02,
+  "sat": 0.92
+ },
+ {
+  "src": "images/royale-biker-jacket/02_side_model.jpg",
+  "out": "lib_biker_side.jpg",
+  "w": 900
+ },
+ {
+  "src": "images/royale-biker-jacket/03_hardware_detail.jpg",
+  "out": "lib_biker_hardware.jpg",
+  "w": 900
+ },
+ {
+  "src": "images/nova-leather-jacket/02_side_model.jpg",
+  "out": "lib_womens_side.jpg",
+  "w": 900
+ },
+ {
+  "src": "images/heritage-weekender/04_carried_by_model.jpg",
+  "out": "lib_weekender_carried.jpg",
+  "w": 900,
+  "hue": -0.02,
+  "sat": 0.92
+ },
+ {
+  "src": "images/heritage-weekender/05_travel_lifestyle.jpg",
+  "out": "lib_weekender_bench.jpg",
+  "w": 900,
+  "hue": -0.02,
+  "sat": 0.92
+ },
+ {
+  "src": "images/heritage-weekender/03_leather_hardware.jpg",
+  "out": "lib_weekender_hardware.jpg",
+  "w": 900,
+  "hue": -0.02,
+  "sat": 0.92
+ },
+ {
+  "src": "images/urban-shacket/01_front_model.jpg",
+  "out": "lib_shacket_front.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/urban-shacket/02_rear_angle.jpg",
+  "out": "lib_shacket_rear.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/urban-shacket/03_material_detail.jpg",
+  "out": "lib_shacket_detail.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/urban-shacket/05_cafe_lifestyle.jpg",
+  "out": "lib_shacket_cafe.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/regent-blazer/01_front_model.jpg",
+  "out": "lib_blazer_front.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/regent-blazer/02_angle_model.jpg",
+  "out": "lib_blazer_angle.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/regent-blazer/03_tailoring_detail.jpg",
+  "out": "lib_blazer_detail.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/regent-blazer/05_lounge_lifestyle.jpg",
+  "out": "lib_blazer_lounge.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/classic-bifold-wallet/01_studio_hero.jpg",
+  "out": "lib_wallet_studio.jpg",
+  "w": 1122
+ },
+ {
+  "src": "images/classic-bifold-wallet/05_desk_lifestyle.jpg",
+  "out": "lib_wallet_desk.jpg",
+  "w": 900
+ }
+]
