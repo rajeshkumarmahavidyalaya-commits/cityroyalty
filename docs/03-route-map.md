@@ -4,7 +4,7 @@
 
 | Route | Purpose | Rendering |
 | --- | --- | --- |
-| `/` | Home: hero (3D jacket scroll experience), collections, new arrivals, editorial, featured, craftsmanship, journal, newsletter | RSC + ISR |
+| `/` | Home: hero, collections, new arrivals, editorial, featured, craftsmanship, journal, newsletter | RSC + ISR |
 | `/collections` | All collections | ISR |
 | `/collections/[slug]` | Collection / category listing with filters, sort, grid-list, quick view | RSC + client filters (URL-driven) |
 | `/products/[slug]` | Product detail (gallery, variants, size guide, add to bag, buy now, related) | ISR + on-demand revalidate |

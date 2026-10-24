@@ -33,10 +33,10 @@ cityroyalty/
 
 ## Frontend (apps/web)
 
-* Server Components fetch from the API with tagged `fetch` caching (`revalidate` + on-demand revalidation webhook from the API on publish). Client components only where interaction needs it (cart, filters, gallery, 3D hero).
+* Server Components fetch from the API with tagged `fetch` caching (`revalidate` + on-demand revalidation webhook from the API on publish). Client components only where interaction needs it (cart, filters, gallery).
 * Tailwind 4 theme tokens from the brand palette; fonts via `next/font` (Playfair Display, Inter).
 * Motion used sparingly: scroll reveals, page transitions, drawer, gallery; all gated by `prefers-reduced-motion`.
-* Three.js jacket hero is `dynamic(..., {ssr:false})`, mounted only when its section nears the viewport, with a poster image fallback (no-WebGL / reduced-motion / data-saver).
+* The homepage hero is a static server-rendered section (headline, CTA, a real product photo). The scroll-driven 3D jacket hero was removed at the owner's request; the original microsite remains in `apps/showcase`.
 * SEO: `generateMetadata`, canonical URLs, JSON-LD (Organization, Product + Offer, BreadcrumbList), `sitemap.ts`, `robots.ts`, OG images.
 
 ## Deployment shape

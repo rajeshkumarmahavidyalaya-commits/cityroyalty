@@ -37,4 +37,4 @@ bluorng.com rate-limited automated fetches (HTTP 429) during the audit, so it wa
 
 ## Existing repo
 
-The repository already contains a polished three.js scroll experience (biker + women's jacket models, studio lighting, configurator). Decision (confirmed with the owner): **keep it as the homepage hero experience**, preserved as `apps/showcase` (standalone microsite, unchanged) and re-hosted as a lazy-loaded section on the new Next.js homepage.
+The repository already contains a polished three.js scroll experience (biker + women's jacket models, studio lighting, configurator). Decision (confirmed with the owner): **keep it as the homepage hero experience**, preserved as `apps/showcase` (standalone microsite, unchanged) and re-hosted as a lazy-loaded section on the new Next.js homepage. *Update:* the owner later asked to remove the scrolling jacket effect; the storefront hero is now static and the microsite stays in `apps/showcase`.

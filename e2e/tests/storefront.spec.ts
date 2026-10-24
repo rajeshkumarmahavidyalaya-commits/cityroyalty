@@ -16,16 +16,17 @@ test.describe('storefront', () => {
     expect(errors).toEqual([]);
   });
 
-  test('3D hero renders a canvas (or falls back) without page errors or failing assets', async ({ page, isMobile }) => {
+  test('hero is a static section: headline, photo and CTA, no scroll-driven canvas', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     // 5xx responses for anything except speculative router prefetches (_rsc), which the browser may abort/retry
     page.on('response', (r) => r.status() >= 500 && !r.url().includes('_rsc=') && errors.push(`${r.status()} ${r.url()}`));
     await page.goto('/');
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 20_000 });
-    await expect.poll(async () => page.locator('canvas').evaluate((c) => getComputedStyle(c).opacity), { timeout: 30_000 }).toBe('1');
-    await page.mouse.wheel(0, isMobile ? 1200 : 1500);
-    await expect(page.getByText('Details that work hard.')).toBeVisible();
+    const hero = page.getByRole('region', { name: 'City Royalty' });
+    await expect(hero.getByRole('heading', { level: 1 })).toHaveText('Wear a higher standard.');
+    await expect(hero.getByRole('link', { name: 'Explore collection' })).toBeVisible();
+    await expect(hero.getByRole('img')).toBeVisible();
+    await expect(page.locator('canvas')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 

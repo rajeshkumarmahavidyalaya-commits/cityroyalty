@@ -31,6 +31,6 @@ Button, IconButton, Eyebrow, Container, Section, ProductCard (hover swaps to 2nd
 ## Interaction rules
 
 * Motion durations 200–500 ms, ease `cubic-bezier(.22,.61,.36,1)`. Scroll reveals translate ≤ 24 px.
-* `prefers-reduced-motion`: reveals/transitions collapse to opacity, 3D hero shows poster, smooth scrolling off.
+* `prefers-reduced-motion`: reveals/transitions collapse to opacity, smooth scrolling off.
 * Focus: 2 px royal ring with 2 px ivory offset on every interactive element; skip link; drawers trap focus and restore it.
 * Images: `next/image`, AVIF/WebP, blur placeholder, fade-in on load, explicit aspect ratio (no CLS).

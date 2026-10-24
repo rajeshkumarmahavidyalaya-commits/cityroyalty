@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { CollectionDTO, ImageDTO } from '@cityroyalty/shared';
-import { Hero3D } from '@/components/home/Hero3D';
+import { Hero } from '@/components/home/Hero';
 import { ProductRail } from '@/components/home/ProductRail';
 import { Newsletter } from '@/components/layout/Newsletter';
 import { ProductCard } from '@/components/product/ProductCard';
@@ -62,7 +62,7 @@ export default async function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Hero3D poster={poster} />
+      <Hero poster={poster} />
 
       {tiles.length > 0 && (
         <section className="section-y" aria-labelledby="shop-col">

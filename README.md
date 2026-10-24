@@ -4,7 +4,7 @@
 
 | Package | What | Stack |
 | --- | --- | --- |
-| `apps/web` | Customer storefront with a scroll-driven 3D jacket hero | Next.js 16 (App Router, RSC), TypeScript, Tailwind 4, Motion, three.js |
+| `apps/web` | Customer storefront | Next.js 16 (App Router, RSC), TypeScript, Tailwind 4, Motion |
 | `apps/admin` | Role-protected commerce back-office | Next.js 16, TypeScript, Tailwind 4 |
 | `apps/api` | REST API, payments, inventory, import tools | Express 5, Drizzle ORM on Postgres (Supabase), zod, sharp, pino |
 | `packages/shared` | Types, zod schemas, money/text helpers — the API contract | TypeScript |
@@ -45,7 +45,6 @@ npm run test:e2e       # Playwright (46): storefront, checkout/payment edge case
 * **No fabricated social proof**: there are no ratings, review counts, "sold" numbers, urgency timers or certifications anywhere, and no code path that renders them. Stock labels reflect real stock.
 * **Concept art is not merchandise**: the supplied AI concept pack was used only as design/art-direction reference. The API refuses to expose or publish `concept` images on products ([docs/product-accuracy.md](docs/product-accuracy.md)).
 * **Payments**: Razorpay (India) and Stripe adapters use provider-hosted/tokenised flows and signature-verified, idempotent webhooks; card data never touches our servers. They are unit-tested against recorded provider behaviour but **have not been exercised against live provider accounts** — that is a launch-checklist item.
-* **3D**: the hero reuses the CC-BY 4.0 glTF jackets ("Leather Biker Jacket" by Sigil0fSaturn, "Leather Jacket" by Zoe McCue) with a poster/static fallback for reduced-motion, data-saver and no-WebGL.
 
 ## Feature overview
 

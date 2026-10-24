@@ -5,7 +5,7 @@ Status legend: ✅ planned for this build · 🔌 built behind an adapter/flag (
 | Area | Feature | Status |
 | --- | --- | --- |
 | Brand | Original identity (tokens, type, logo wordmark placeholder until real logo file supplied) | ✅ |
-| Home | 3D jacket hero, collections, new arrivals, editorial, featured (curated), craftsmanship, journal, newsletter | ✅ |
+| Home | Hero, collections, new arrivals, editorial, featured (curated), craftsmanship, journal, newsletter | ✅ |
 | Home | "Bestsellers" from real sales data | ✅ computed from paid orders once data exists; curated *Featured* until then |
 | Browse | Collection pages, filters (category, size, colour, material, price, availability), sort, grid/list, mobile filter drawer, swatches, wishlist, quick view, incremental loading | ✅ |
 | Product | Gallery with thumbnails + zoom (5 slot types), variants, size guide, material & care, stock, quantity, add to bag, buy now, wishlist, delivery info from settings, related | ✅ |
