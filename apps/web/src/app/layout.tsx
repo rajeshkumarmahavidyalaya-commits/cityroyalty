@@ -22,10 +22,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: '#080808', width: 'device-width', initialScale: 1 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const [cols, settings] = await Promise.all([api.collections(), api.settings()]);
+  const [cols, settings, campaigns] = await Promise.all([api.collections(), api.settings(), api.campaigns()]);
   const nav = navFromCollections(cols?.items ?? []);
   const thr = settings?.shipping.freeThreshold;
-  const announcement = thr != null ? `Free shipping on orders over ${formatMoney(thr)}` : undefined;
+  // an active "announcement" campaign (editable in admin) wins over the default free-shipping line
+  const announcement = campaigns?.items.find((c) => c.key === 'announcement')?.headline || (thr != null ? `Free shipping on orders over ${formatMoney(thr)}` : undefined);
   return (
     <html lang="en-IN">
       <head>
