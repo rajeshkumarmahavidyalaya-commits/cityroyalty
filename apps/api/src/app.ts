@@ -80,8 +80,10 @@ export function createApp(deps: Deps) {
     try {
       await db().execute(sql`select 1`);
       res.json({ ok: true });
-    } catch {
-      res.status(503).json({ ok: false });
+    } catch (err) {
+      // only the driver/SQLSTATE code (e.g. 28P01, CONNECT_TIMEOUT), never the message, so nothing sensitive leaks
+      const e = err as { code?: string; cause?: { code?: string } };
+      res.status(503).json({ ok: false, code: e.cause?.code ?? e.code ?? 'unknown' });
     }
   });
 
