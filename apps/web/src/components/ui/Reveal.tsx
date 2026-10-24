@@ -6,7 +6,9 @@ import type { ReactNode } from 'react';
 export function Reveal({ children, delay = 0, className, as = 'div' }: { children: ReactNode; delay?: number; className?: string; as?: 'div' | 'li' | 'section' }) {
   const reduce = useReducedMotion();
   const Tag = motion[as];
-  if (reduce) return <Tag className={className}>{children}</Tag>;
+  // The server render starts hidden (it can't know the preference), so reduced motion must actively set the
+  // final state — dropping the animation props alone leaves the element at opacity 0.
+  if (reduce) return <Tag className={className} initial={false} animate={{ opacity: 1, y: 0 }}>{children}</Tag>;
   return (
     <Tag
       className={className}

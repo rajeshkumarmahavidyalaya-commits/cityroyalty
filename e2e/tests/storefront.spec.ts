@@ -34,6 +34,19 @@ test.describe('storefront', () => {
     expect(errors).toEqual([]);
   });
 
+  test('reduced motion: scroll-reveal content is shown, not left invisible', async ({ browser }) => {
+    const page = await (await browser.newContext({ reducedMotion: 'reduce' })).newPage();
+    await page.goto('http://localhost:3100/');
+    const heading = page.getByRole('heading', { name: 'The signature edit' });
+    await heading.scrollIntoViewIfNeeded();
+    await expect(heading).toBeVisible();
+    // Reveal wrappers must end fully opaque without any animation running
+    await expect.poll(() => heading.evaluate((el) => getComputedStyle(el.closest('div')!).opacity)).toBe('1');
+    const craft = page.getByRole('heading', { name: /Materials that matter/i });
+    await craft.scrollIntoViewIfNeeded();
+    await expect.poll(() => craft.evaluate((el) => getComputedStyle(el.parentElement!).opacity)).toBe('1');
+  });
+
   test('collection: filter by size, in-stock, sort and clear', async ({ page }) => {
     await page.goto('/collections/mens-jacket');
     await expect(page.getByRole('heading', { level: 1 })).toContainText("Men's");
