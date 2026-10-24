@@ -65,9 +65,9 @@ export default async function CollectionPage({ params, searchParams }: Props) {
             </ul>
           </div>
           {col?.heroImage && (
-            // editorial mood image set per collection in admin (decorative: the title says what the page is)
+            // editorial mood image set per collection in admin (decorative; tablet+ only so phones reach products first)
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={col.heroImage} alt="" className="aspect-[4/5] w-full max-w-md object-cover md:w-[min(26rem,38vw)]" />
+            <img src={col.heroImage} alt="" className="hidden aspect-[4/5] object-cover md:block md:w-[min(26rem,38vw)]" />
           )}
         </div>
       </section>
