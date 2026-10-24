@@ -4,7 +4,7 @@ import { loadConfig } from './config';
 import { connectDb } from './db';
 
 const config = loadConfig();
-connectDb(config.DATABASE_URL, { max: config.DB_POOL_MAX });
+connectDb(config.DATABASE_URL, { max: config.DB_POOL_MAX, maxPipeline: config.DB_MAX_PIPELINE });
 const app = createApp(buildDeps(config));
 
 export default app;

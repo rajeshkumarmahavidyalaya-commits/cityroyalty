@@ -12,6 +12,8 @@ const schema = z.object({
   /** Postgres (Supabase). Use the transaction pooler (port 6543) for serverless hosts. */
   DATABASE_URL: z.string().default('postgres://postgres:postgres@127.0.0.1:54329/cityroyalty'),
   DB_POOL_MAX: z.coerce.number().default(10),
+  /** Queries postgres-js may pipeline per connection; 1 behind Supabase's transaction pooler. */
+  DB_MAX_PIPELINE: z.coerce.number().default(100),
   /** Alternative to DATABASE_URL: parts, so only the password has to be a secret. Used when DB_PASSWORD is set and DATABASE_URL is not. */
   DB_HOST: z.string().optional(),
   DB_PORT: z.coerce.number().default(6543),

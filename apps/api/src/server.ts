@@ -4,7 +4,7 @@ import { connectDb, disconnectDb, runMigrations } from './db';
 import { logger } from './logger';
 
 const config = loadConfig();
-connectDb(config.DATABASE_URL, { max: config.DB_POOL_MAX });
+connectDb(config.DATABASE_URL, { max: config.DB_POOL_MAX, maxPipeline: config.DB_MAX_PIPELINE });
 if (process.env.RUN_MIGRATIONS === 'true') await runMigrations();
 const deps = buildDeps(config);
 const app = createApp(deps);
