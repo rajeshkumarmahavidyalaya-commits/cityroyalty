@@ -27,8 +27,9 @@ describe('public catalogue', () => {
     expect(res.body.product.images.map((i: { alt: string }) => i.alt)).toEqual(['real']);
     expect(JSON.stringify(res.body.product.images)).not.toContain('concept');
     expect(res.body.product.styling.map((i: { alt: string }) => i.alt)).toEqual(['concept art']);
-    const list = (await request(t.app).get('/api/v1/products')).body.items;
-    expect(JSON.stringify(list)).not.toContain('concept');
+    const [card] = (await request(t.app).get('/api/v1/products')).body.items;
+    expect([card.image?.alt, card.hoverImage?.alt]).not.toContain('concept art'); // cards lead with the photograph
+    expect(card.styledImage.alt).toBe('concept art'); // offered separately, for labelled editorial use
   });
 
   it('exposes stock only as availability, plus a real low-stock number', async () => {

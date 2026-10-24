@@ -4,7 +4,6 @@ import type { CollectionDTO, ImageDTO } from '@cityroyalty/shared';
 import { Hero } from '@/components/home/Hero';
 import { ProductRail } from '@/components/home/ProductRail';
 import { Newsletter } from '@/components/layout/Newsletter';
-import { ProductCard } from '@/components/product/ProductCard';
 import { ArrowIcon } from '@/components/ui/Icons';
 import { ResponsiveImage } from '@/components/ui/ResponsiveImage';
 import { Reveal } from '@/components/ui/Reveal';
@@ -17,36 +16,33 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 };
 
-/** Leading paragraphs of a CMS page, as plain strings. */
-const paragraphs = (html: string | undefined, n = 2): string[] =>
-  [...(html ?? '').matchAll(/<p>([\s\S]*?)<\/p>/g)]
-    .map((m) => m[1]!.replace(/<[^>]+>/g, '').trim())
-    .filter((t) => t.length > 90)
-    .slice(0, n);
-
+/**
+ * Homepage, laid out after the brand's campaign board: dark hero → category tiles → the signature edit (featured pieces
+ * only) → materials band → campaign band → journal → newsletter. Material/making statements are limited to what every
+ * featured listing states (full-grain vegetable-tanned leather, made by artisans in India, YKK brass zips on jackets).
+ */
 export default async function Home() {
-  const [cols, newest, featuredRes, articles, about, settings, campaigns] = await Promise.all([
+  const [cols, picks, articles, settings, campaigns] = await Promise.all([
     api.collections(),
-    api.products({ sort: 'newest', limit: 8 }),
-    api.products({ featured: true, limit: 8 }),
+    api.products({ featured: true, limit: 12 }),
     api.articles(),
-    api.page('about'),
     api.settings(),
     api.campaigns(),
   ]);
+  const pieces = picks?.items ?? [];
+  const campaign = (key: string) => campaigns?.items.find((c) => c.key === key);
+  const hero = campaign('home-hero');
+  const craft = campaign('home-craft');
+  const band = campaign('home-editorial');
 
-  // one representative real photo per collection tile
-  const top = (cols?.items ?? []).filter((c) => !c.parent || !cols?.items.some((x) => x.slug === c.parent)).slice(0, 6);
-  const tiles = await Promise.all(
-    top.map(async (c) => {
-      const r = await api.products({ collection: c.slug, limit: 1 });
-      return { c, image: r?.items[0]?.image ?? null };
-    }),
-  );
-  const poster: ImageDTO | null = tiles.find((t) => t.c.slug === 'jacket' || t.c.slug === 'mens-jacket')?.image ?? tiles[0]?.image ?? null;
-  const featured = (featuredRes?.items.length ? featuredRes.items : newest?.items ?? []).slice(0, 8);
-  const editorial = campaigns?.items.find((c) => c.key === 'home-editorial');
-  const story = paragraphs(about?.body);
+  // one tile per most-specific collection that holds a featured piece (e.g. men's / women's jackets, bags)
+  const all = cols?.items ?? [];
+  const leaves = all.filter((c) => !all.some((x) => x.parent === c.slug) && pieces.some((p) => p.collections.includes(c.slug)));
+  const tiles = leaves.map((c) => {
+    const p = pieces.find((x) => x.collections.includes(c.slug));
+    return { c, image: p?.styledImage ?? p?.image ?? null };
+  });
+  const firstPhoto: ImageDTO | null = pieces[0]?.styledImage ?? pieces[0]?.image ?? null;
   const journal = (articles?.items ?? []).slice(0, 3);
 
   const jsonLd = {
@@ -62,100 +58,91 @@ export default async function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Hero poster={poster} />
+      <Hero campaign={hero} fallback={firstPhoto} />
 
       {tiles.length > 0 && (
-        <section className="section-y" aria-labelledby="shop-col">
-          <div className="container-x">
-            <Reveal className="mb-10 flex items-end justify-between gap-6 md:mb-14">
-              <div>
-                <p className="eyebrow text-tan">Shop by collection</p>
-                <h2 id="shop-col" className="mt-3 text-4xl md:text-6xl">Find your piece</h2>
-              </div>
-              <Link href="/collections/all" className="eyebrow link-u hidden pb-2 md:inline-block">View all</Link>
+        <section className="bg-royal pt-2" aria-labelledby="shop-col">
+          <h2 id="shop-col" className="sr-only">Find your piece</h2>
+          <ul className={`grid gap-2 px-2 ${tiles.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            {tiles.map(({ c, image }, i) => (
+              <Reveal as="li" key={c.slug} delay={i * 0.08}>
+                <CategoryTile c={c} image={image} />
+              </Reveal>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {pieces.length > 0 && (
+        <section className="section-y" aria-labelledby="edit">
+          <div className="container-x grid gap-10 lg:grid-cols-[17rem_1fr] lg:gap-14">
+            <Reveal>
+              <h2 id="edit" className="display-caps text-3xl md:text-4xl">The signature edit</h2>
+              <p className="mt-3 text-sm text-muted">Bold silhouettes. Timeless materials.</p>
+              <span className="mt-6 block h-px w-12 bg-royal" aria-hidden />
+              <Link href="/collections/all" className="eyebrow link-u mt-6 inline-block">Shop all</Link>
             </Reveal>
-            <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-6">
-              {tiles.map(({ c, image }, i) => (
-                <Reveal as="li" key={c.slug} delay={(i % 3) * 0.08} className={i === 0 ? 'col-span-2 md:col-span-1 md:row-span-1' : ''}>
-                  <CollectionTile c={c} image={image} />
-                </Reveal>
-              ))}
-            </ul>
+            <ProductRail items={pieces} label="The signature edit" styledLead />
           </div>
         </section>
       )}
 
-      {(newest?.items.length ?? 0) > 0 && (
-        <section className="section-y pt-0" aria-labelledby="new">
-          <div className="container-x">
-            <Reveal className="mb-8 flex items-end justify-between md:mb-12">
-              <div>
-                <p className="eyebrow text-tan">Just in</p>
-                <h2 id="new" className="mt-3 text-4xl md:text-6xl">New arrivals</h2>
-              </div>
-              <Link href="/collections/all?sort=newest" className="eyebrow link-u pb-2">Shop new</Link>
-            </Reveal>
-            <ProductRail items={newest!.items} label="new arrivals" />
-          </div>
-        </section>
-      )}
-
-      <section className="on-dark bg-heritage text-ivory" aria-labelledby="editorial">
-        <div className="container-x grid items-center gap-10 py-16 md:grid-cols-2 md:gap-20 md:py-28">
-          <Reveal>
-            {(editorial?.image ? null : poster) && !editorial?.image && poster && <ResponsiveImage image={poster} sizes="(min-width:768px) 45vw, 100vw" ratio="4 / 5" />}
-            {editorial?.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={editorial.image} alt={editorial.imageAlt} className="aspect-[4/5] w-full object-cover" loading="lazy" />
-            )}
-          </Reveal>
-          <Reveal delay={0.1}>
-            <p className="eyebrow text-stone">The edit</p>
-            <h2 id="editorial" className="mt-4 text-4xl md:text-7xl">{editorial?.headline || 'Timeless leather. Modern expression.'}</h2>
-            <p className="mt-6 max-w-md text-ivory/85 md:text-lg">
-              {editorial?.subline || 'Confident silhouettes in leather, made to be worn hard and kept for years. Discover the pieces that define the City Royalty standard.'}
-            </p>
-            <Link href={editorial?.ctaHref || '/collections/all'} className="btn btn-light mt-9">{editorial?.ctaLabel || 'Explore collection'}<ArrowIcon width={18} height={18} /></Link>
-          </Reveal>
+      <section className="grid bg-royal text-ivory md:grid-cols-[1.05fr_1.25fr_0.95fr]" aria-labelledby="craft">
+        <div className="relative min-h-72 md:min-h-[30rem]">
+          {craft?.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={craft.image} alt={craft.imageAlt} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="absolute inset-0 bg-heritage" aria-hidden />
+          )}
         </div>
+        <Reveal className="on-dark flex flex-col justify-center px-6 py-14 md:px-12 lg:px-16">
+          <p className="eyebrow text-stone">The craftsmanship</p>
+          <h2 id="craft" className="display-caps mt-4 text-4xl md:text-5xl">{craft?.headline || 'Materials that matter'}</h2>
+          <p className="mt-6 max-w-md text-ivory/80">
+            {craft?.subline || 'Every piece in this edit is cut from full-grain, vegetable-tanned leather and made by artisans in India — leather chosen for its character and the way it wears in.'}
+          </p>
+          <Link href={craft?.ctaHref || '/pages/about'} className="btn btn-light mt-8 self-start">
+            {craft?.ctaLabel || 'Our story'}
+            <ArrowIcon width={18} height={18} />
+          </Link>
+        </Reveal>
+        <ul className="flex flex-col justify-center gap-8 bg-stone/90 px-8 py-12 text-royal md:px-10">
+          {[
+            ['Full-grain leather', 'Vegetable-tanned, with natural grain left intact'],
+            ['Made in India', 'By skilled artisans'],
+            ['YKK brass zips', 'On every jacket in the edit'],
+          ].map(([t, s]) => (
+            <li key={t} className="flex gap-4">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rotate-45 bg-heritage" aria-hidden />
+              <div>
+                <p className="eyebrow">{t}</p>
+                <p className="mt-1 text-sm text-royal/70">{s}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
 
-      {featured.length > 0 && (
-        <section className="section-y" aria-labelledby="feat">
-          <div className="container-x">
-            <Reveal className="mb-10 text-center md:mb-14">
-              <p className="eyebrow text-tan">Curated</p>
-              <h2 id="feat" className="mt-3 text-4xl md:text-6xl">Featured pieces</h2>
-            </Reveal>
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4 md:gap-x-6">
-              {featured.slice(0, 8).map((p, i) => (
-                <Reveal as="li" key={p.id} delay={(i % 4) * 0.06}><ProductCard product={p} quickView={false} /></Reveal>
-              ))}
-            </ul>
-            <div className="mt-14 text-center"><Link href="/collections/all" className="btn btn-ghost">Shop all</Link></div>
+      {band?.image && (
+        <section className="on-dark relative overflow-hidden bg-royal text-ivory" aria-labelledby="band">
+          <div className="absolute inset-0 md:left-auto md:w-[55%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={band.image} alt={band.imageAlt} className="h-full w-full object-cover object-[50%_25%]" loading="lazy" />
           </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-royal via-royal/60 to-royal/10 md:hidden" aria-hidden />
+          <div className="absolute inset-0 hidden md:block" style={{ background: 'linear-gradient(90deg,#080808 0%,#080808 42%,rgba(8,8,8,.55) 56%,rgba(8,8,8,0) 75%)' }} aria-hidden />
+          <Reveal className="container-x relative flex min-h-[34rem] flex-col justify-end pb-14 pt-48 md:min-h-[30rem] md:justify-center md:py-20">
+            <p className="eyebrow text-stone">The City Royalty collection</p>
+            <h2 id="band" className="display-caps mt-4 max-w-[14ch] text-4xl md:text-6xl">{band.headline || 'Iconic outside. More within.'}</h2>
+            {band.subline && <p className="mt-5 max-w-md text-ivory/80">{band.subline}</p>}
+            <Link href={band.ctaHref || '/collections/jacket'} className="btn btn-ghost mt-8 self-start !border-ivory !text-ivory hover:!bg-ivory hover:!text-royal">
+              {band.ctaLabel || 'Shop the jackets'}
+              <ArrowIcon width={18} height={18} />
+            </Link>
+          </Reveal>
         </section>
       )}
-
-      <section className="border-y border-line bg-white/50" aria-labelledby="craft">
-        <div className="container-x grid gap-10 py-16 md:grid-cols-12 md:py-28">
-          <Reveal className="md:col-span-5">
-            <p className="eyebrow text-tan">Our story</p>
-            <h2 id="craft" className="mt-4 text-4xl md:text-6xl">Craft you can feel</h2>
-            {(settings?.brandFacts.length ?? 0) > 0 && (
-              <ul className="mt-8 space-y-3 border-t border-line pt-6 text-sm">
-                {settings!.brandFacts.map((f) => (<li key={f} className="flex gap-3"><span aria-hidden className="mt-2 h-px w-5 bg-tan" />{f}</li>))}
-              </ul>
-            )}
-          </Reveal>
-          <Reveal delay={0.1} className="md:col-span-6 md:col-start-7">
-            {story.length ? story.map((t, i) => (<p key={i} className="mb-5 text-lg leading-relaxed text-royal/90 last:mb-0">{t}</p>)) : (
-              <p className="text-lg leading-relaxed text-royal/90">{settings?.storeName ?? 'City Royalty'} — high quality leather goods from India.</p>
-            )}
-            <Link href="/pages/about" className="eyebrow link-u mt-8 inline-block">Read more about us</Link>
-          </Reveal>
-        </div>
-      </section>
 
       {journal.length > 0 && (
         <section className="section-y" aria-labelledby="journal">
@@ -163,7 +150,7 @@ export default async function Home() {
             <Reveal className="mb-10 flex items-end justify-between md:mb-14">
               <div>
                 <p className="eyebrow text-tan">The Journal</p>
-                <h2 id="journal" className="mt-3 text-4xl md:text-6xl">Notes on leather</h2>
+                <h2 id="journal" className="display-caps mt-3 text-3xl md:text-5xl">Notes on leather</h2>
               </div>
               <Link href="/journal" className="eyebrow link-u pb-2">All stories</Link>
             </Reveal>
@@ -186,8 +173,8 @@ export default async function Home() {
 
       <section className="bg-stone/40" aria-labelledby="nl">
         <div className="container-x py-16 text-center md:py-24">
-          <h2 id="nl" className="text-4xl md:text-6xl">Be the first to know</h2>
-          <p className="mx-auto mt-4 max-w-md text-muted">New arrivals and quiet announcements — never more than you want.</p>
+          <h2 id="nl" className="display-caps text-3xl md:text-5xl">Join our circle</h2>
+          <p className="mx-auto mt-4 max-w-md text-muted">New pieces and quiet announcements — never more than you want.</p>
           <div className="mx-auto max-w-md text-left"><Newsletter tone="light" /></div>
         </div>
       </section>
@@ -195,22 +182,24 @@ export default async function Home() {
   );
 }
 
-function CollectionTile({ c, image }: { c: CollectionDTO; image: ImageDTO | null }) {
+function CategoryTile({ c, image }: { c: CollectionDTO; image: ImageDTO | null }) {
   return (
-    <Link href={`/collections/${c.slug}`} className="group relative block overflow-hidden bg-line">
-      {image ? (
-        <ResponsiveImage image={image} sizes="(min-width:768px) 32vw, 50vw" ratio="4 / 5" imgClassName="transition-transform duration-[1.4s] ease-[var(--ease-lux)] group-hover:scale-[1.04]" />
+    <Link href={`/collections/${c.slug}`} className="group relative block overflow-hidden bg-heritage">
+      {c.heroImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={c.heroImage} alt="" className="aspect-[4/5] w-full object-cover object-[50%_20%] transition-transform duration-[1.4s] ease-[var(--ease-lux)] group-hover:scale-[1.04] md:aspect-[5/6]" loading="lazy" />
+      ) : image ? (
+        <ResponsiveImage image={image} sizes="(min-width:768px) 33vw, 100vw" ratio="5 / 6" alt="" imgClassName="transition-transform duration-[1.4s] ease-[var(--ease-lux)] group-hover:scale-[1.04]" />
       ) : (
-        <div className="aspect-[4/5]" />
+        <div className="aspect-[5/6]" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-royal/70 via-royal/5 to-transparent" aria-hidden />
-      <div className="on-dark absolute inset-x-0 bottom-0 flex items-end justify-between p-4 text-ivory md:p-6">
-        <div>
-          <h3 className="text-2xl leading-tight md:text-3xl">{c.title}</h3>
-          <p className="eyebrow mt-1 text-stone">{c.count} {c.count === 1 ? 'piece' : 'pieces'}</p>
-        </div>
-        <ArrowIcon className="transition-transform duration-300 group-hover:translate-x-1" />
+      <div className="absolute inset-0 bg-gradient-to-t from-royal/80 via-royal/10 to-transparent" aria-hidden />
+      <div className="on-dark absolute inset-x-0 bottom-0 p-5 text-ivory md:p-7">
+        <h3 className="display-caps text-2xl md:text-3xl">{c.title}</h3>
+        <span className="mt-3 block h-px w-10 bg-ivory/70 transition-all duration-500 group-hover:w-16" aria-hidden />
+        <p className="eyebrow mt-3 inline-flex items-center gap-2 text-stone">Explore <ArrowIcon width={14} height={14} className="transition-transform group-hover:translate-x-1" /></p>
       </div>
     </Link>
   );
 }
+

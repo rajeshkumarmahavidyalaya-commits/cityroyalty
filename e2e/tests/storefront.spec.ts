@@ -8,7 +8,11 @@ test.describe('storefront', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Wear a higher standard');
     await expect(page.getByText(/Free shipping on orders over ₹600/i).first()).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Find your piece' })).toBeVisible();
+    const tiles = page.getByRole('region', { name: 'Find your piece' });
+    await expect(tiles.getByRole('link').first()).toBeVisible(); // a tile per collection holding a featured piece
+    const edit = page.getByRole('region', { name: 'The signature edit' });
+    await expect(edit.getByRole('heading', { name: 'The signature edit' })).toBeVisible();
+    await expect(edit.getByRole('article').first()).toBeVisible(); // featured pieces only
     const nav = page.getByRole('navigation', { name: /Primary|Mobile/ }).first();
     void nav;
     await page.goto('/collections/all');

@@ -105,6 +105,14 @@
     text-transform: uppercase;
     font-weight: 500;
   }
+  /* brand board display style: light, spaced uppercase serif */
+  .display-caps {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.035em;
+    line-height: 1.02;
+  }
   .container-x {
     width: 100%;
     max-width: 90rem;

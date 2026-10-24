@@ -217,7 +217,7 @@ export const articleInputSchema = z.object({
 });
 
 export const campaignInputSchema = z.object({
-  key: z.enum(['home-hero', 'home-editorial', 'announcement']),
+  key: z.enum(['home-hero', 'home-craft', 'home-editorial', 'announcement']),
   headline: text(120).default(''),
   subline: text(240).default(''),
   ctaLabel: text(40).default(''),

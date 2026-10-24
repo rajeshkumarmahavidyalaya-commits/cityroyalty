@@ -51,6 +51,7 @@ export function toCard(p: FullProduct): ProductCardDTO {
     sizes: p.sizes,
     image: imgs[0] ?? null,
     hoverImage: imgs[1] ?? null,
+    styledImage: stylingImages(p)[0] ?? null,
     available: p.available,
     featured: p.featured,
     collections: p.collections,

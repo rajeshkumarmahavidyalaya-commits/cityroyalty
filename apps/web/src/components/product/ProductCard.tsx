@@ -16,24 +16,31 @@ interface Props {
   quickView?: boolean;
   /** heading level for the product title; use 2 under an h1 list, 3 under an h2 section */
   headingLevel?: 2 | 3;
+  /** editorial placements: lead with the tagged styling image and reveal the real photograph on hover */
+  styledLead?: boolean;
 }
 
-export function ProductCard({ product: p, sizes = '(min-width:1280px) 22vw, (min-width:768px) 30vw, 48vw', priority, layout = 'grid', quickView = true, headingLevel = 3 }: Props) {
+export function ProductCard({ product: p, sizes = '(min-width:1280px) 22vw, (min-width:768px) 30vw, 48vw', priority, layout = 'grid', quickView = true, headingLevel = 3, styledLead = false }: Props) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const [qv, setQv] = useState(false);
   const off = percentOff(p.priceFrom, p.compareAtFrom);
   const list = layout === 'list';
+  const styled = styledLead && p.styledImage && p.image ? p.styledImage : null;
+  const lead = styled ?? p.image;
+  const hover = styled ? p.image : p.hoverImage;
   return (
     <article className={`group relative ${list ? 'grid grid-cols-[38%_1fr] items-center gap-6 sm:grid-cols-[22%_1fr]' : ''}`}>
       {/* decorative duplicate of the title link below: hidden from AT and the tab order */}
       <Link href={`/products/${p.slug}`} className="block" aria-hidden tabIndex={-1}>
         <div className="relative overflow-hidden bg-line">
-          {p.image ? (
+          {lead ? (
             <>
-              <ResponsiveImage image={p.image} sizes={sizes} ratio="4 / 5" priority={priority} />
-              {p.hoverImage && (
+              <ResponsiveImage image={lead} sizes={sizes} ratio="4 / 5" priority={priority} />
+              {/* sits under the hover layer, so it disappears with the styling image */}
+              {styled && <span className="pointer-events-none absolute bottom-2 left-2 bg-ivory/90 px-1.5 py-0.5 text-[0.6rem] tracking-wide text-royal">Styling image</span>}
+              {hover && (
                 <div className="pointer-events-none absolute inset-0 hidden opacity-0 transition-opacity duration-700 ease-[var(--ease-lux)] group-hover:opacity-100 md:block">
-                  <ResponsiveImage image={p.hoverImage} sizes={sizes} ratio="4 / 5" />
+                  <ResponsiveImage image={hover} sizes={sizes} ratio="4 / 5" />
                 </div>
               )}
             </>

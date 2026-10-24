@@ -62,6 +62,8 @@ export interface ProductCardDTO {
   sizes: string[];
   image: ImageDTO | null;
   hoverImage: ImageDTO | null;
+  /** First styling (concept) image, for editorial placements that label it; `image` stays the real photograph. */
+  styledImage: ImageDTO | null;
   available: boolean;
   featured: boolean;
   collections: string[];

@@ -5,7 +5,7 @@ import { ChevronIcon } from '../ui/Icons';
 import { ProductCard } from '../product/ProductCard';
 
 /** Horizontal, touch-friendly slider (CSS scroll-snap) with keyboard-reachable arrows on desktop. */
-export function ProductRail({ items, label }: { items: ProductCardDTO[]; label: string }) {
+export function ProductRail({ items, label, styledLead }: { items: ProductCardDTO[]; label: string; styledLead?: boolean }) {
   const ref = useRef<HTMLUListElement>(null);
   const scroll = (dir: 1 | -1) => {
     const el = ref.current;
@@ -16,7 +16,7 @@ export function ProductRail({ items, label }: { items: ProductCardDTO[]; label: 
       <ul ref={ref} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:gap-6 md:px-0" aria-label={label} tabIndex={0}>
         {items.map((p) => (
           <li key={p.id} className="w-[62%] shrink-0 snap-start sm:w-[40%] md:w-[28%] xl:w-[23.2%]">
-            <ProductCard product={p} sizes="(min-width:1280px) 22vw, (min-width:768px) 28vw, 62vw" quickView={false} />
+            <ProductCard product={p} sizes="(min-width:1280px) 22vw, (min-width:768px) 28vw, 62vw" quickView={false} styledLead={styledLead} />
           </li>
         ))}
       </ul>

@@ -5,7 +5,9 @@ import { call, errorMessage, useResource } from '@/lib/api';
 
 interface Camp { key: string; headline: string; subline: string; ctaLabel: string; ctaHref: string; image: string | null; imageAlt: string; active: boolean }
 const KEYS = [
-  { key: 'home-editorial', label: 'Homepage editorial banner', hint: 'The large story block between “New arrivals” and “Featured”. Use an approved real photograph.' },
+  { key: 'home-hero', label: 'Homepage hero', hint: 'The full-height opening image and headline. Portrait images work best (the photo fills the right of the screen on desktop).' },
+  { key: 'home-craft', label: 'Homepage “Materials that matter” band', hint: 'Close-up image beside the craftsmanship copy. Only state material and making facts your product listings support.' },
+  { key: 'home-editorial', label: 'Homepage campaign band', hint: 'The wide dark band (“Iconic outside. More within.”) near the end of the homepage.' },
   { key: 'announcement', label: 'Announcement', hint: 'Short message (stored for the announcement bar).' },
 ] as const;
 const blank = (key: string): Camp => ({ key, headline: '', subline: '', ctaLabel: '', ctaHref: '', image: null, imageAlt: '', active: true });
