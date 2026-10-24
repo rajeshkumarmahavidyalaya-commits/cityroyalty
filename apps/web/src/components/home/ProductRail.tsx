@@ -13,7 +13,7 @@ export function ProductRail({ items, label, styledLead }: { items: ProductCardDT
   };
   return (
     <div className="relative">
-      <ul ref={ref} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:gap-6 md:px-0" aria-label={label} tabIndex={0}>
+      <ul ref={ref} className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:scroll-px-0 md:gap-6 md:px-0" aria-label={label} tabIndex={0}>
         {items.map((p) => (
           <li key={p.id} className="w-[62%] shrink-0 snap-start sm:w-[40%] md:w-[28%] xl:w-[23.2%]">
             <ProductCard product={p} sizes="(min-width:1280px) 22vw, (min-width:768px) 28vw, 62vw" quickView={false} styledLead={styledLead} />
