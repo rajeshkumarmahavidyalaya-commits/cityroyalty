@@ -77,6 +77,8 @@ export interface ProductDTO extends ProductCardDTO {
   options: ProductOptionDTO[];
   variants: VariantDTO[];
   images: ImageDTO[];
+  /** Styling imagery (concept art of a similar look). Never part of the gallery; shown in a labelled section. */
+  styling: ImageDTO[];
   seo: { title?: string; description?: string; noindex?: boolean };
   updatedAt: string;
 }

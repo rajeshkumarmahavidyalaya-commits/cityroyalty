@@ -21,11 +21,14 @@ describe('public catalogue', () => {
     expect((await request(t.app).get('/api/v1/products/live')).status).toBe(200);
   });
 
-  it('never exposes concept images, even if one is attached to a published product', async () => {
+  it('keeps concept images out of the gallery and listing cards; they are served only as labelled styling imagery', async () => {
     await makeProduct({ slug: 'mixed', images: [photo('real'), { ...photo('concept art'), kind: 'concept', slot: 'lifestyle', src: 'https://cdn.test/concept.webp' }] });
     const res = await request(t.app).get('/api/v1/products/mixed');
-    expect(res.body.product.images).toHaveLength(1);
-    expect(JSON.stringify(res.body)).not.toContain('concept');
+    expect(res.body.product.images.map((i: { alt: string }) => i.alt)).toEqual(['real']);
+    expect(JSON.stringify(res.body.product.images)).not.toContain('concept');
+    expect(res.body.product.styling.map((i: { alt: string }) => i.alt)).toEqual(['concept art']);
+    const list = (await request(t.app).get('/api/v1/products')).body.items;
+    expect(JSON.stringify(list)).not.toContain('concept');
   });
 
   it('exposes stock only as availability, plus a real low-stock number', async () => {

@@ -58,11 +58,15 @@ test.describe('admin', () => {
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(page.getByText('Status: published')).toBeVisible();
 
-    // storefront (separate anonymous visitor) can now see it — and only the photograph, never the concept image
+    // storefront (separate anonymous visitor) can now see it — the gallery holds only the photograph; the concept image
+    // appears solely in the labelled "Styled look" section
     const visitor = await (await browser.newContext()).newPage();
     await expect.poll(async () => (await visitor.goto('http://localhost:3100/products/e2e-heritage-satchel'))?.status(), { timeout: 20_000 }).toBe(200);
     await expect(visitor.getByRole('heading', { level: 1 })).toHaveText('E2E Heritage Satchel');
-    await expect(visitor.locator('img[alt="Concept render"]')).toHaveCount(0);
+    await expect(visitor.getByLabel('E2E Heritage Satchel images').locator('img[alt="Concept render"]')).toHaveCount(0);
+    const styled = visitor.getByRole('region', { name: 'Styled look' });
+    await expect(styled.getByText(/may differ in details/)).toBeVisible();
+    await expect(styled.locator('img[alt="Concept render"]')).toHaveCount(1);
     await expect(visitor.getByText('₹4,999').first()).toBeVisible();
   });
 

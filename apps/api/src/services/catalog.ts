@@ -22,6 +22,8 @@ export function toImage(i: ImageRow): ImageDTO {
 
 /** Concept art never leaves the API on a product (docs/product-accuracy.md). */
 export const publicImages = (p: Pick<FullProduct, 'images'>): ImageDTO[] => p.images.filter((i) => i.kind === 'photo').map(toImage);
+/** Concept images: served separately so the storefront can label them; they never enter the product gallery. */
+export const stylingImages = (p: Pick<FullProduct, 'images'>): ImageDTO[] => p.images.filter((i) => i.kind === 'concept').map(toImage);
 
 export function toVariant(v: VariantRow): VariantDTO {
   const stock = v.stock ?? 0;
@@ -67,6 +69,7 @@ export function toProduct(p: FullProduct): ProductDTO {
     options: p.options,
     variants: p.variants.filter((v) => v.active).map(toVariant),
     images: publicImages(p),
+    styling: stylingImages(p),
     seo: { title: p.seo.title || undefined, description: p.seo.description || undefined, noindex: p.seo.noindex || undefined },
     updatedAt: p.updatedAt.toISOString(),
   };

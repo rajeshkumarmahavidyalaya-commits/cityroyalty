@@ -65,6 +65,9 @@ describe('admin product workflow', () => {
     const pubRes = await request(t.app).get('/api/v1/products/tan-leather-jacket');
     expect(pubRes.status).toBe(200);
     expect(pubRes.body.product.images).toHaveLength(1);
+    expect(pubRes.body.product.images[0].alt).toBe('Tan jacket front');
+    // the concept render is served only as labelled styling imagery, never in the gallery
+    expect(pubRes.body.product.styling.map((i: { alt: string }) => i.alt)).toEqual(['concept render']);
 
     // removing the last verified photo pulls the product off the storefront
     await mgr.delete(`/api/v1/admin/products/${p.id}/images/${img.id}`);

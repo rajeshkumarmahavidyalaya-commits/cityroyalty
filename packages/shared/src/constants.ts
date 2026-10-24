@@ -16,7 +16,7 @@ export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 /** Five photographic slots per product (brief §2). */
 export const IMAGE_SLOTS = ['front', 'back', 'studio', 'detail', 'lifestyle'] as const;
 export type ImageSlot = (typeof IMAGE_SLOTS)[number];
-/** `concept` = AI/concept art. Never allowed on a published product (docs/product-accuracy.md). */
+/** `concept` = AI/concept art: never in a product's gallery or cards, never unlocks publishing; shown only as labelled styling imagery (docs/product-accuracy.md). */
 export const IMAGE_KINDS = ['photo', 'concept'] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 
