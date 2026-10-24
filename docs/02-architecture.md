@@ -45,7 +45,7 @@ cityroyalty/
 | --- | --- | --- |
 | apps/web | Vercel | env: `API_URL`, `NEXT_PUBLIC_SITE_URL` |
 | apps/admin | Vercel | env: `API_URL`; `X-Robots-Tag: noindex` |
-| apps/api | Vercel Function (`src/vercel.ts`) or Node host | env in `.env.example`; Supabase Postgres via the transaction pooler |
+| apps/api | Vercel Function (`src/vercel.ts`) or Node host | env in `.env.example`; Supabase Postgres via the pooler (session mode) |
 | Images | Supabase Storage (public `media` bucket) or S3/R2 + CDN | `STORAGE_DRIVER=supabase` or `s3` |
 
 See `06-deployment.md`.
