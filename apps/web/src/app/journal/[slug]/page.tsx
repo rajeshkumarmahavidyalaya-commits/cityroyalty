@@ -3,6 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/env';
+import { BRAND, ldJson } from '@/lib/seo';
+
+/** First real paragraph of an article, as plain text, for descriptions. */
+const summary = (html: string) => (html.match(/<p>([\s\S]*?)<\/p>/g) ?? []).map((p) => p.replace(/<[^>]+>/g, '').trim()).find((t) => t.length > 60)?.slice(0, 155);
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -10,11 +14,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const a = await api.article(slug);
   if (!a) return { title: 'Story not found', robots: { index: false } };
+  const description = a.seo.description ?? (a.excerpt || summary(a.body));
   return {
     title: a.seo.title ?? a.title,
-    description: a.seo.description ?? (a.excerpt || undefined),
+    description,
     alternates: { canonical: `/journal/${slug}` },
-    openGraph: { type: 'article', title: a.title, publishedTime: a.publishedAt ?? undefined },
+    openGraph: { type: 'article', title: a.title, description, url: `/journal/${slug}`, publishedTime: a.publishedAt ?? undefined, images: a.coverImage ? [{ url: a.coverImage }] : undefined },
   };
 }
 
@@ -22,10 +27,24 @@ export default async function Article({ params }: Props) {
   const { slug } = await params;
   const a = await api.article(slug);
   if (!a) notFound();
-  const ld = { '@context': 'https://schema.org', '@type': 'Article', headline: a.title, datePublished: a.publishedAt, mainEntityOfPage: `${SITE_URL}/journal/${a.slug}`, publisher: { '@type': 'Organization', name: 'City Royalty' } };
+  const url = `${SITE_URL}/journal/${a.slug}`;
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: a.title,
+    description: a.excerpt || summary(a.body),
+    image: a.coverImage || undefined,
+    datePublished: a.publishedAt,
+    dateModified: a.publishedAt,
+    inLanguage: 'en-IN',
+    mainEntityOfPage: url,
+    url,
+    author: { '@type': 'Organization', name: BRAND, url: SITE_URL },
+    publisher: { '@id': `${SITE_URL}/#organization` },
+  };
   return (
     <article className="container-x py-14 md:py-24">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />
       <Link href="/journal" className="eyebrow link-u">← The Journal</Link>
       <header className="mx-auto mt-10 max-w-3xl">
         <p className="eyebrow text-tan">{a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}</p>

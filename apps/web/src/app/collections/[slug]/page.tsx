@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { CollectionBrowser } from '@/components/collection/CollectionBrowser';
 import { api } from '@/lib/api';
 import { SITE_URL } from '@/lib/env';
+import { formatMoney } from '@/lib/format';
+import { BRAND, ldJson } from '@/lib/seo';
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -16,8 +18,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await api.collection(slug);
   if (!c) return { title: 'Collection not found', robots: { index: false } };
   const title = c.seo.title ?? c.title;
-  const description = c.seo.description ?? (c.description || `Shop ${c.title} from City Royalty.`);
-  return { title, description, alternates: { canonical: `/collections/${slug}` }, openGraph: { title, description } };
+  const list = await api.products({ collection: slug, limit: 60 });
+  const prices = (list?.items ?? []).map((p) => p.priceFrom).filter((n) => n > 0);
+  const range = prices.length ? ` from ${formatMoney(Math.min(...prices))}` : '';
+  const description = c.seo.description ?? (c.description || `Shop ${c.count} ${c.title.toLowerCase()} by ${BRAND}${range}. Leather pieces from India.`);
+  return { title, description, alternates: { canonical: `/collections/${slug}` }, openGraph: { title, description, url: `/collections/${slug}`, images: c.heroImage ? [{ url: c.heroImage }] : undefined } };
 }
 
 export default async function CollectionPage({ params, searchParams }: Props) {
@@ -37,18 +42,38 @@ export default async function CollectionPage({ params, searchParams }: Props) {
   const description = isAll ? 'Every City Royalty piece, in one place.' : col!.description;
   const siblings = (cols?.items ?? []).filter((c) => (col?.parent ? c.parent === col.parent : !c.parent || true));
 
+  const pageUrl = `${SITE_URL}/collections/${slug}`;
+  const parentCol = col?.parent ? (cols?.items ?? []).find((c) => c.slug === col.parent) : undefined;
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-      { '@type': 'ListItem', position: 2, name: title, item: `${SITE_URL}/collections/${slug}` },
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': pageUrl,
+        url: pageUrl,
+        name: title,
+        description: description || undefined,
+        isPartOf: { '@id': `${SITE_URL}/#website` },
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: list?.total ?? 0,
+          itemListElement: (list?.items ?? []).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE_URL}/products/${p.slug}`, name: p.title })),
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { name: 'Home', item: SITE_URL },
+          ...(parentCol ? [{ name: parentCol.title, item: `${SITE_URL}/collections/${parentCol.slug}` }] : []),
+          { name: title, item: pageUrl },
+        ].map((x, i) => ({ '@type': 'ListItem', position: i + 1, ...x })),
+      },
     ],
   };
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />
       <section className="bg-stone/35">
         <div className={`container-x py-14 md:py-24 ${col?.heroImage ? 'grid items-center gap-10 md:grid-cols-[1fr_auto]' : ''}`}>
           <div>

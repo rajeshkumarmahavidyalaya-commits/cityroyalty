@@ -113,6 +113,9 @@ async function download(url: string, cacheDir: string, fetchImpl: typeof fetch):
   return buf;
 }
 
+/** Theme demo filler text, e.g. the WoodMart FAQ page ("A placerat ac vestibulum integer…"). */
+const PLACEHOLDER = /\blorem ipsum\b|\bplacerat ac vestibulum\b|\bparturient ullamcorper\b/i;
+
 /** The snapshot shipped with the API (works from src/, the dist/ bundle and a Vercel Function). */
 export function snapshotDir() {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -231,7 +234,9 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
     for (const x of pg) {
       const map = PAGE_MAP[x.slug];
       if (!map) continue;
-      const values = { title: map.title, body: cleanHtml(x.content.rendered), status: 'published', wooId: x.id };
+      const body = cleanHtml(x.content.rendered);
+      // theme demo filler (Lorem Ipsum) is imported as a draft so it is never published or indexed
+      const values = { title: map.title, body, status: PLACEHOLDER.test(body) ? 'draft' : 'published', wooId: x.id };
       await db().insert(pages).values({ ...values, slug: map.slug }).onConflictDoUpdate({ target: pages.slug, set: values });
       report.pages++;
     }

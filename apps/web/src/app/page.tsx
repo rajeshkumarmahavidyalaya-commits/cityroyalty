@@ -8,13 +8,18 @@ import { ArrowIcon } from '@/components/ui/Icons';
 import { ResponsiveImage } from '@/components/ui/ResponsiveImage';
 import { Reveal } from '@/components/ui/Reveal';
 import { api } from '@/lib/api';
-import { SITE_URL } from '@/lib/env';
 
-export const metadata: Metadata = {
-  title: { absolute: 'City Royalty — Leather jackets, bags & accessories from India' },
-  description: 'Wear a higher standard. Timeless leather jackets, bags, belts and accessories — modern expression from City Royalty.',
-  alternates: { canonical: '/' },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const hero = (await api.campaigns())?.items.find((c) => c.key === 'home-hero');
+  const title = 'City Royalty — Leather jackets, bags & accessories from India';
+  const description = 'Wear a higher standard. Timeless leather jackets, bags, belts and accessories — modern expression from City Royalty.';
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: '/' },
+    openGraph: { title, description, url: '/', images: hero?.image ? [{ url: hero.image, alt: hero.imageAlt }] : undefined },
+  };
+}
 
 /**
  * Homepage, laid out after the brand's campaign board: dark hero → category tiles → the signature edit (featured pieces
@@ -22,11 +27,10 @@ export const metadata: Metadata = {
  * featured listing states (full-grain vegetable-tanned leather, made by artisans in India, YKK brass zips on jackets).
  */
 export default async function Home() {
-  const [cols, picks, articles, settings, campaigns] = await Promise.all([
+  const [cols, picks, articles, campaigns] = await Promise.all([
     api.collections(),
     api.products({ featured: true, limit: 12 }),
     api.articles(),
-    api.settings(),
     api.campaigns(),
   ]);
   const pieces = picks?.items ?? [];
@@ -45,19 +49,9 @@ export default async function Home() {
   const firstPhoto: ImageDTO | null = pieces[0]?.styledImage ?? pieces[0]?.image ?? null;
   const journal = (articles?.items ?? []).slice(0, 3);
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'City Royalty',
-    url: SITE_URL,
-    sameAs: [settings?.social.instagram, settings?.social.facebook].filter(Boolean),
-    email: settings?.supportEmail,
-    telephone: settings?.supportPhone,
-  };
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Hero campaign={hero} fallback={firstPhoto} />
 
       {tiles.length > 0 && (

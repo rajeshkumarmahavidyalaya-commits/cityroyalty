@@ -115,6 +115,10 @@ export function publicRoutes({ config, adapters, orders, rate }: Deps) {
     if (!a) throw notFound('Article');
     res.json(toArticle(a));
   }));
+  r.get('/pages', cacheable(60), wrap(async (_req, res) => {
+    const items = await db().select({ slug: pages.slug, title: pages.title, updatedAt: pages.updatedAt }).from(pages).where(eq(pages.status, 'published')).orderBy(asc(pages.title));
+    res.json({ items: items.map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })) });
+  }));
   r.get('/pages/:slug', cacheable(60), wrap(async (req, res) => {
     const [p] = await db().select().from(pages).where(and(eq(pages.slug, String(req.params.slug)), eq(pages.status, 'published')));
     if (!p) throw notFound('Page');

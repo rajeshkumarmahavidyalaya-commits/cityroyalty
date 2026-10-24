@@ -75,3 +75,19 @@ Never run `seed --demo` against anything customer-facing. Indexes are part of th
 * **Backups**: Supabase PITR; test a restore quarterly. Media bucket versioning on.
 * **Updating the catalogue**: all through Admin. Publishing triggers revalidation so the storefront updates within seconds.
 * **Security**: rotate `JWT_SECRET` (logs everyone out) and provider secrets on staff changes; review Admin → Audit log; staff accounts use unique strong passwords (MFA is a known gap — see README "Known limitations").
+
+## SEO / AEO / GEO at launch
+
+The storefront is **not indexable until you opt in**: without `NEXT_PUBLIC_INDEXABLE=true` every page sends
+`noindex, nofollow` and robots.txt disallows everything, so the vercel.app preview never competes with cityroyalty.in.
+At cut-over:
+
+1. Set `NEXT_PUBLIC_SITE_URL=https://cityroyalty.in` and `NEXT_PUBLIC_INDEXABLE=true` on the storefront project, redeploy.
+2. Check `/robots.txt` (lists the sitemap; AI search crawlers such as GPTBot, ClaudeBot, PerplexityBot are allowed),
+   `/sitemap.xml` (with product image entries) and `/llms.txt` (generated catalogue summary for AI assistants).
+3. Google Search Console + Bing Webmaster Tools: verify the domain, submit `/sitemap.xml`, inspect a product URL and
+   run the Rich Results test (Product, BreadcrumbList, Organization, WebSite/SearchAction, BlogPosting).
+4. Content the owner must confirm before indexing: the **FAQs** page (imported as theme Lorem Ipsum, kept
+   unpublished), and the return window — the refund page is WooCommerce's sample text ("30 days") while the privacy
+   page states "15 days". Structured data deliberately omits returns, shipping and ratings until these are real.
+

@@ -39,7 +39,7 @@ export async function up() {
   const env = {
     ...process.env, NODE_ENV: 'development', DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${PORTS.db}/cityroyalty_e2e`, JWT_SECRET: 'e2e-secret-e2e-secret-e2e-secret-e2e', STORAGE_LOCAL_DIR: media, PUBLIC_MEDIA_URL: '/media',
     PAYMENT_MOCK_ENABLED: 'true', RATE_LIMIT_DISABLED: 'true', REVALIDATE_SECRET: 'e2e-revalidate-secret', REVALIDATE_URL: `http://localhost:${PORTS.web}/api/revalidate`, MOCK_WEBHOOK_SECRET: 'e2e-webhook', PUBLIC_WEB_URL: `http://localhost:${PORTS.web}`, PORT: String(PORTS.api), LOG_LEVEL: 'warn',
-    API_URL: `http://localhost:${PORTS.api}`, NEXT_DIST_DIR: '.next-e2e', NEXT_PUBLIC_SITE_URL: `http://localhost:${PORTS.web}`, NEXT_TELEMETRY_DISABLED: '1',
+    API_URL: `http://localhost:${PORTS.api}`, NEXT_DIST_DIR: '.next-e2e', NEXT_PUBLIC_SITE_URL: `http://localhost:${PORTS.web}`, NEXT_TELEMETRY_DISABLED: '1', NEXT_PUBLIC_INDEXABLE: 'true',
   };
   await run('npx', ['tsx', 'apps/api/scripts/seed-e2e.ts'], { env });
   children.push(spawn('npx', ['tsx', 'apps/api/src/server.ts'], { cwd: root, env, stdio: 'inherit', detached: true }));

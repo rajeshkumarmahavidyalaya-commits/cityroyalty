@@ -55,6 +55,11 @@ describe('WooCommerce snapshot importer', () => {
     const [refund] = await db().select().from(pages).where(eq(pages.slug, 'refund-and-returns'));
     expect(refund!.body.length).toBeGreaterThan(200);
     expect(refund!.body).not.toMatch(/<script|elementor/i);
+    // the theme's Lorem Ipsum FAQ is imported unpublished, and page-builder shortcodes are stripped
+    const [faqs] = await db().select().from(pages).where(eq(pages.slug, 'faqs'));
+    expect(faqs!.status).toBe('draft');
+    const all = await db().select().from(pages);
+    expect(all.some((p) => /\[\/?(vc_|woodmart)/.test(p.body))).toBe(false);
   });
 
   it('is idempotent and never overwrites a human edit', async () => {

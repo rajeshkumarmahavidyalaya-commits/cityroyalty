@@ -3,7 +3,15 @@ import type { PublicSettingsDTO } from '@cityroyalty/shared';
 import { Newsletter } from './Newsletter';
 import type { NavItem } from '@/lib/nav';
 
-export function Footer({ settings, nav }: { settings: PublicSettingsDTO | null; nav: NavItem[] }) {
+const INFO = [
+  ['faqs', 'FAQs'],
+  ['refund-and-returns', 'Refund & returns'],
+  ['privacy-policy', 'Privacy policy'],
+  ['about', 'About us'],
+] as const;
+
+/** `pages`: slugs of published info pages — unpublished ones (e.g. a placeholder FAQ) are not linked. */
+export function Footer({ settings, nav, pages }: { settings: PublicSettingsDTO | null; nav: NavItem[]; pages: string[] }) {
   const s = settings;
   return (
     <footer className="on-dark mt-auto bg-royal text-ivory">
@@ -24,10 +32,9 @@ export function Footer({ settings, nav }: { settings: PublicSettingsDTO | null; 
           <p className="eyebrow mb-4 text-stone">Help</p>
           <ul className="space-y-2 text-sm">
             <li><Link className="link-u" href="/track-order">Track an order</Link></li>
-            <li><Link className="link-u" href="/pages/faqs">FAQs</Link></li>
-            <li><Link className="link-u" href="/pages/refund-and-returns">Refund &amp; returns</Link></li>
-            <li><Link className="link-u" href="/pages/privacy-policy">Privacy policy</Link></li>
-            <li><Link className="link-u" href="/pages/about">About us</Link></li>
+            {INFO.filter(([slug]) => pages.includes(slug)).map(([slug, label]) => (
+              <li key={slug}><Link className="link-u" href={`/pages/${slug}`}>{label}</Link></li>
+            ))}
           </ul>
         </nav>
         <div className="md:col-span-3">

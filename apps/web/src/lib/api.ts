@@ -50,6 +50,7 @@ export const api = {
   articles: () => get<{ items: ArticleDTO[] }>('/articles', { tags: ['articles'] }),
   article: (slug: string) => get<ArticleDTO>(`/articles/${encodeURIComponent(slug)}`, { tags: ['articles'] }),
   page: (slug: string) => get<PageDTO>(`/pages/${encodeURIComponent(slug)}`, { tags: ['pages'] }),
+  pages: () => get<{ items: { slug: string; title: string; updatedAt: string }[] }>('/pages', { tags: ['pages'] }),
   campaigns: () => get<{ items: CampaignDTO[] }>('/campaigns', { tags: ['campaigns'] }),
   settings: () => get<PublicSettingsDTO>('/settings/public', { tags: ['settings'] }),
 };
