@@ -85,9 +85,18 @@ At cut-over:
 1. Set `NEXT_PUBLIC_SITE_URL=https://cityroyalty.in` and `NEXT_PUBLIC_INDEXABLE=true` on the storefront project, redeploy.
 2. Check `/robots.txt` (lists the sitemap; AI search crawlers such as GPTBot, ClaudeBot, PerplexityBot are allowed),
    `/sitemap.xml` (with product image entries) and `/llms.txt` (generated catalogue summary for AI assistants).
-3. Google Search Console + Bing Webmaster Tools: verify the domain, submit `/sitemap.xml`, inspect a product URL and
-   run the Rich Results test (Product, BreadcrumbList, Organization, WebSite/SearchAction, BlogPosting).
-4. Content the owner must confirm before indexing: the **FAQs** page (imported as theme Lorem Ipsum, kept
-   unpublished), and the return window — the refund page is WooCommerce's sample text ("30 days") while the privacy
-   page states "15 days". Structured data deliberately omits returns, shipping and ratings until these are real.
+3. Google Search Console + Bing Webmaster Tools (after the domain points at Vercel):
+   * Add the property `https://cityroyalty.in`. Verify with the **DNS TXT record** method (easiest), or choose
+     "HTML tag", copy only the `content="…"` value and set it on the storefront project as
+     `GOOGLE_SITE_VERIFICATION` (Bing: `BING_SITE_VERIFICATION`, its `msvalidate.01` value), redeploy, then click Verify.
+   * Bing can import the verified site straight from Google Search Console.
+   * Submit `https://cityroyalty.in/sitemap.xml` in both, inspect a product URL and run the Rich Results test
+     (Product, BreadcrumbList, Organization, WebSite/SearchAction, BlogPosting, FAQPage on `/pages/faqs`).
+4. Analytics: the storefront ships Vercel Web Analytics (cookieless page views; the privacy page says so). Turn it on
+   once in the Vercel dashboard: project `cityroyalty-web` → **Analytics** → **Enable**. Until then
+   `/_vercel/insights/script.js` returns 404 and nothing is counted.
+5. Information pages (2026-10-27): FAQs, Shipping, Refund & returns, Lifetime guarantee and Privacy were rewritten
+   from the owner's own published policy (15-day returns, 1–2 day processing + 2–5 day delivery, lifetime guarantee)
+   and the site's actual data handling; the 30-day text was WooCommerce's sample page. The owner should still read
+   them once before launch. Returns window is set to 15 days in settings.
 
