@@ -4,7 +4,7 @@ import { Badge, Field, Loading, Notice, PageHeader, Table } from '@/components/k
 import { call, date, errorMessage, useResource } from '@/lib/api';
 
 interface Art { id: string; title: string; slug: string; excerpt: string; body: string; status: 'draft' | 'published'; publishedAt: string | null; seo: { title?: string; description?: string } }
-interface Pg { id: string; slug: string; title: string; body: string; status: 'draft' | 'published' }
+interface Pg { id?: string; slug: string; title: string; body: string; status: 'draft' | 'published' }
 
 export default function Content() {
   const arts = useResource<{ items: Art[] }>('/admin/articles');
@@ -19,7 +19,7 @@ export default function Content() {
   }
   async function savePg(e: React.FormEvent) {
     e.preventDefault(); if (!pg) return;
-    try { await call(`/admin/pages/${pg.id}`, { method: 'PUT', body: { title: pg.title, body: pg.body, status: pg.status } }); setPg(null); setMsg({ t: 'ok', s: 'Page saved.' }); await pages.reload(); } catch (x) { setMsg({ t: 'error', s: errorMessage(x) }); }
+    try { const body = { title: pg.title, body: pg.body, status: pg.status }; await (pg.id ? call(`/admin/pages/${pg.id}`, { method: 'PUT', body }) : call('/admin/pages', { body: { ...body, slug: pg.slug || undefined } })); setPg(null); setMsg({ t: 'ok', s: 'Page saved.' }); await pages.reload(); } catch (x) { setMsg({ t: 'error', s: errorMessage(x) }); }
   }
   return (
     <div className="space-y-10">
@@ -45,11 +45,12 @@ export default function Content() {
         )}
       </section>
       <section className="space-y-4" aria-label="Information pages">
-        <h2 className="text-2xl">Information pages</h2>
-        <p className="text-xs text-muted">About, FAQs, Refund &amp; returns and Privacy were imported from the live site — review them before launch. A page with slug <code>size-guide</code> powers the size-guide dialog on product pages.</p>
+        <div className="flex items-center justify-between"><h2 className="text-2xl">Information pages</h2><button className="btn btn-primary btn-sm" onClick={() => setPg({ slug: '', title: '', body: '', status: 'draft' })}>New page</button></div>
+        <p className="text-xs text-muted">Pages listed in the footer: <code>faqs</code>, <code>shipping</code>, <code>refund-and-returns</code>, <code>lifetime-guarantee</code>, <code>privacy-policy</code>, <code>about</code> (shown once published). On <code>faqs</code>, each <code>&lt;h3&gt;</code> question with the paragraphs under it becomes a search-engine FAQ entry. A page with slug <code>size-guide</code> powers the size-guide dialog on product pages.</p>
         {pg && (
           <form onSubmit={savePg} className="card space-y-3">
             <Field label="Title" id="pt"><input id="pt" className="field" value={pg.title} onChange={(e) => setPg({ ...pg, title: e.target.value })} required /></Field>
+            {!pg.id && <Field label="Slug" id="pslug"><input id="pslug" className="field" value={pg.slug} onChange={(e) => setPg({ ...pg, slug: e.target.value })} placeholder="from the title" /></Field>}
             <Field label="Body (HTML)" id="pb"><textarea id="pb" rows={16} className="field font-mono text-xs" value={pg.body} onChange={(e) => setPg({ ...pg, body: e.target.value })} /></Field>
             <Field label="Status" id="ps"><select id="ps" className="field !w-auto" value={pg.status} onChange={(e) => setPg({ ...pg, status: e.target.value as Pg['status'] })}><option value="published">Published</option><option value="draft">Draft</option></select></Field>
             <div className="flex gap-2"><button className="btn btn-primary">Save</button><button type="button" className="btn btn-ghost" onClick={() => setPg(null)}>Cancel</button></div>

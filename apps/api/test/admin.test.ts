@@ -217,6 +217,19 @@ describe('content', () => {
     expect((await request(t.app).get('/api/v1/articles/secret-draft')).status).toBe(404);
   });
 
+  it('creates information pages with a unique slug, sanitised', async () => {
+    const editor = await sessionFor(t.app, 'content');
+    const created = await editor.post('/api/v1/admin/pages', { title: 'Shipping', body: '<p onclick="x()">Dispatched in 1–2 days</p>', status: 'published' });
+    expect(created.status).toBe(201);
+    expect(created.body.slug).toBe('shipping');
+    const pg = await request(t.app).get('/api/v1/pages/shipping');
+    expect(pg.status).toBe(200);
+    expect(pg.body.body).toBe('<p>Dispatched in 1–2 days</p>');
+    expect((await editor.post('/api/v1/admin/pages', { title: 'Shipping again', slug: 'shipping', body: '', status: 'draft' })).status).toBe(409);
+    const customer = await sessionFor(t.app, 'customer');
+    expect((await customer.post('/api/v1/admin/pages', { title: 'Nope', body: '', status: 'draft' })).status).toBe(403);
+  });
+
   it('settings are admin-only and validated', async () => {
     const admin = await sessionFor(t.app, 'admin');
     const cur = (await admin.get('/api/v1/admin/settings')).body;

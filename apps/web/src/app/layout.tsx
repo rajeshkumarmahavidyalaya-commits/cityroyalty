@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Analytics } from '@vercel/analytics/next';
 import { CartDrawer } from '@/components/layout/CartDrawer';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import { navFromCollections } from '@/lib/nav';
 import { api } from '@/lib/api';
-import { INDEXABLE, SITE_URL } from '@/lib/env';
+import { BING_SITE_VERIFICATION, GOOGLE_SITE_VERIFICATION, INDEXABLE, SITE_URL } from '@/lib/env';
 import { formatMoney } from '@/lib/format';
 import { ldJson, organizationLd, websiteLd } from '@/lib/seo';
 import { StoreProviders } from '@/lib/store';
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/', languages: { 'en-IN': '/' } },
   // previews/staging are never indexed; production opts in with NEXT_PUBLIC_INDEXABLE=true
   robots: INDEXABLE ? { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 } } : { index: false, follow: false },
+  verification: { google: GOOGLE_SITE_VERIFICATION, other: BING_SITE_VERIFICATION ? { 'msvalidate.01': BING_SITE_VERIFICATION } : undefined },
 };
 export const viewport: Viewport = { themeColor: '#080808', width: 'device-width', initialScale: 1 };
 
@@ -45,6 +47,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <Footer settings={settings} nav={nav} pages={(pages?.items ?? []).map((p) => p.slug)} />
           <CartDrawer freeThreshold={thr ?? null} />
         </StoreProviders>
+        {/* cookieless page-view counts (Vercel Web Analytics); only on Vercel, where the collector exists */}
+        {process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
   );

@@ -140,8 +140,19 @@ export function adminContentRoutes({ storage, revalidate }: Deps) {
     const items = await db().select().from(pages).orderBy(asc(pages.title));
     res.json({ items: items.map((p) => ({ id: p.id, slug: p.slug, title: p.title, body: p.body, status: p.status, seo: p.seo })) });
   }));
+  const pageInput = z.object({ title: z.string().min(1).max(120), body: z.string().max(60000), status: z.enum(['draft', 'published']) });
+  r.post('/pages', editor, wrap(async (req, res) => {
+    const d = parse(pageInput.extend({ slug: z.string().max(80).optional() }), req.body);
+    const slug = slugify(d.slug || d.title);
+    if (!slug) throw badRequest('A slug is required');
+    const [p] = await db().insert(pages).values({ slug, title: d.title, body: cleanHtml(d.body), status: d.status }).onConflictDoNothing({ target: pages.slug }).returning();
+    if (!p) throw conflict('A page with this slug exists', 'duplicate');
+    await audit(req, 'page.create', 'page', p.id, p.title);
+    void revalidate('pages');
+    res.status(201).json({ id: p.id, slug });
+  }));
   r.put('/pages/:id', editor, wrap(async (req, res) => {
-    const d = parse(z.object({ title: z.string().min(1).max(120), body: z.string().max(60000), status: z.enum(['draft', 'published']) }), req.body);
+    const d = parse(pageInput, req.body);
     const [p] = await db().update(pages).set({ ...d, body: cleanHtml(d.body), updatedAt: new Date() }).where(eq(pages.id, idParam(req))).returning();
     if (!p) throw notFound('Page');
     await audit(req, 'page.update', 'page', p.id, p.title);

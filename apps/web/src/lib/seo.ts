@@ -77,3 +77,26 @@ export function productMetaDescription(p: { title: string; description: string; 
   const text = `${lead}.${price ? ` ${price}.` : ''}${opening ? ` ${opening}` : ''}`;
   return text.length > 158 ? `${text.slice(0, 155).replace(/\s+\S*$/, '')}…` : text;
 }
+
+const text = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#8377;|&#x20b9;/gi, '₹')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** FAQPage entries from page HTML: each `<h3>` is a question, everything up to the next heading is its answer. */
+export function faqEntries(html: string): { q: string; a: string }[] {
+  return [...html.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h[23][^>]*>|$)/g)]
+    .map(([, q, a]) => ({ q: text(q!), a: text(a!) }))
+    .filter((e) => e.q && e.a);
+}
+
+export function faqLd(html: string) {
+  const items = faqEntries(html);
+  return items.length
+    ? { '@type': 'FAQPage', mainEntity: items.map((e) => ({ '@type': 'Question', name: e.q, acceptedAnswer: { '@type': 'Answer', text: e.a } })) }
+    : null;
+}

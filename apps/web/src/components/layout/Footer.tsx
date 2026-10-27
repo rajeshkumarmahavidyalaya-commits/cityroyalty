@@ -5,7 +5,9 @@ import type { NavItem } from '@/lib/nav';
 
 const INFO = [
   ['faqs', 'FAQs'],
+  ['shipping', 'Shipping'],
   ['refund-and-returns', 'Refund & returns'],
+  ['lifetime-guarantee', 'Lifetime guarantee'],
   ['privacy-policy', 'Privacy policy'],
   ['about', 'About us'],
 ] as const;

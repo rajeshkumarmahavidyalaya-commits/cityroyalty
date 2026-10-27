@@ -58,6 +58,7 @@ describe('WooCommerce snapshot importer', () => {
     // the theme's Lorem Ipsum FAQ is imported unpublished, and page-builder shortcodes are stripped
     const [faqs] = await db().select().from(pages).where(eq(pages.slug, 'faqs'));
     expect(faqs!.status).toBe('draft');
+    expect(refund!.status).toBe('draft'); // WooCommerce's "This is a sample page." returns policy
     const all = await db().select().from(pages);
     expect(all.some((p) => /\[\/?(vc_|woodmart)/.test(p.body))).toBe(false);
   });
@@ -67,6 +68,7 @@ describe('WooCommerce snapshot importer', () => {
     const p = (await productBy('sku', 'BIKBRNJK4'))!;
     await db().update(variants).set({ stock: 9, price: 123456 }).where(eq(variants.id, p.variants[0]!.id));
     await db().update(products).set({ description: 'Edited by an admin' }).where(eq(products.id, p.id));
+    await db().update(pages).set({ body: '<p>Rewritten policy</p>', status: 'published' }).where(eq(pages.slug, 'refund-and-returns'));
     const again = await importWooSnapshot({ dir, log: () => {}, limit: 12 });
     expect(again.created).toBe(0);
     expect(again.updated).toBe(12);
@@ -75,6 +77,8 @@ describe('WooCommerce snapshot importer', () => {
     expect(q.variants[0]!.stock).toBe(9);
     expect(q.variants[0]!.price).toBe(123456);
     expect(q.description).toBe('Edited by an admin');
+    const [refund] = await db().select().from(pages).where(eq(pages.slug, 'refund-and-returns'));
+    expect(refund).toMatchObject({ body: '<p>Rewritten policy</p>', status: 'published' });
   });
 
   it('maps variations deterministically', () => {

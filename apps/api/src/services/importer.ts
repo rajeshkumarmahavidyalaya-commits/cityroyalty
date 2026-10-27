@@ -114,7 +114,7 @@ async function download(url: string, cacheDir: string, fetchImpl: typeof fetch):
 }
 
 /** Theme demo filler text, e.g. the WoodMart FAQ page ("A placerat ac vestibulum integer…"). */
-const PLACEHOLDER = /\blorem ipsum\b|\bplacerat ac vestibulum\b|\bparturient ullamcorper\b/i;
+const PLACEHOLDER = /\blorem ipsum\b|\bplacerat ac vestibulum\b|\bparturient ullamcorper\b|\bthis is a sample page\b/i;
 
 /** The snapshot shipped with the API (works from src/, the dist/ bundle and a Vercel Function). */
 export function snapshotDir() {
@@ -235,9 +235,10 @@ export async function importWooSnapshot(opts: ImportOptions): Promise<ImportRepo
       const map = PAGE_MAP[x.slug];
       if (!map) continue;
       const body = cleanHtml(x.content.rendered);
-      // theme demo filler (Lorem Ipsum) is imported as a draft so it is never published or indexed
+      // theme demo filler (Lorem Ipsum, WooCommerce's sample policy) is imported as a draft so it is never published or indexed;
+      // a page that already exists is left alone — it may have been rewritten in the admin
       const values = { title: map.title, body, status: PLACEHOLDER.test(body) ? 'draft' : 'published', wooId: x.id };
-      await db().insert(pages).values({ ...values, slug: map.slug }).onConflictDoUpdate({ target: pages.slug, set: values });
+      await db().insert(pages).values({ ...values, slug: map.slug }).onConflictDoNothing({ target: pages.slug });
       report.pages++;
     }
   } catch (err) {

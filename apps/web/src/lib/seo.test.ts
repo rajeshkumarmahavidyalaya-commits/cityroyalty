@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { factAttributes, productFacts, productMetaDescription } from './seo';
+import { factAttributes, faqEntries, faqLd, productFacts, productMetaDescription } from './seo';
 
 const jacket = `Men’s Biker Black Leather Jacket Concept
 Few items of menswear come packaged with as much attitude as a leather jacket. They are built to last.
@@ -48,5 +48,19 @@ describe('factAttributes / productMetaDescription', () => {
     const d = productMetaDescription({ title: 'Men’s Biker Black Leather Jacket', description: jacket, priceFrom: 799900 }, productFacts(jacket));
     expect(d.startsWith('Men’s Biker Black Leather Jacket by City Royalty, in full-grain leather, made in India. ₹7,999.')).toBe(true);
     expect(d.length).toBeLessThanOrEqual(158);
+  });
+});
+
+describe('faqEntries', () => {
+  it('pairs each h3 question with the content up to the next heading', () => {
+    const html = '<h2>Orders</h2><h3>How long does delivery take?</h3><p>Usually 2 to 5 days.</p><ul><li>Tracked</li></ul><h3>Is shipping free?</h3><p>Over &#8377;600 &amp; up.</p><h2>Care</h2><p>Not an answer</p>';
+    expect(faqEntries(html)).toEqual([
+      { q: 'How long does delivery take?', a: 'Usually 2 to 5 days. Tracked' },
+      { q: 'Is shipping free?', a: 'Over ₹600 & up.' },
+    ]);
+  });
+  it('gives no FAQPage when the page has no questions', () => {
+    expect(faqLd('<p>Just text</p>')).toBeNull();
+    expect(faqLd('<h3>Q?</h3><p>A.</p>')).toMatchObject({ '@type': 'FAQPage', mainEntity: [{ name: 'Q?', acceptedAnswer: { text: 'A.' } }] });
   });
 });
